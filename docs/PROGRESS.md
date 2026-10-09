@@ -19,14 +19,14 @@ Rules for whoever works on it:
 | 1 | stop + clean old system (owner approves deletion list) | STOPPED (both Sparks); deletion waits for owner |
 | 2 | inference v1 on dgx-spark, `smoke.sh`, tag `inf-v1` | done: smoke 11/11 |
 | 3 | dgx-spark-2 replica + node-agent, tag `inf-v1.1` | done: smoke 14/14 |
-| 4 | BoostContent backend, `smoke.sh`, tag `bc-v1` | in progress |
-| 5 | BoostContent admin, tag `bc-admin-v1` | not started |
+| 4 | BoostContent backend, `smoke.sh`, tag `bc-v1` | done: smoke 16/16 local + via Cloudflare, pgTAP 38 |
+| 5 | BoostContent admin, tag `bc-admin-v1` | done (verified over HTTP, password left unset) |
 
 ## Next action
 
-Step 4 (cont.): boostcontent_backend is UP locally (compose project `bc`, everything except cloudflared) and the
-full flow works. Remaining: pgTAP tests (db/tests), `smoke.sh`, README, then start cloudflared (public) and
-tag `bc-v1`. Then step 5: admin web (React+Vite+Tailwind JS) served by bc-caddy :3200 → /api = admin PostgREST.
+Plan steps 0–5 are done. Waiting on the owner for: (1) approve the deletion list below, (2) set both admin
+passwords on first visit. Overnight extras in progress: nightly DB backups, Garage CORS (browser uploads),
+scaling/cloud doc.
 
 ## Decisions made overnight (owner asleep 2026-10-09 night → review in the morning)
 
@@ -53,6 +53,10 @@ tag `bc-v1`. Then step 5: admin web (React+Vite+Tailwind JS) served by bc-caddy 
 * Image format for posts: 1024×1280 (4:5, Instagram feed). Setting `image_size` in private.settings.
 * Engine concurrency: 4 LLM + 4 image jobs in flight (settings `llm_concurrency`, `image_concurrency`).
 * Garage CORS is not configured yet: needed only for a browser (Flutter web) uploading directly.
+* **boostcontent.io is live again** with the new backend (cloudflared in the bc compose). The root path answers
+  "BoostContent"; *.boostcontent.io (old tenant subdomains) reach the same Caddy and get the same answer.
+* Admin passwords: both consoles were tested over HTTP with a temporary password, then reset to first-visit.
+  BoostContent admin tokens now die when the password is reset (found during that test).
 
 ## Deletion list, awaiting owner approval
 
@@ -108,3 +112,9 @@ Everything here is **stopped and disabled** overnight, but **not deleted**. Owne
   PUT/GET internal + public; tampered URL 403; guest → business → photo → generate 2 posts → profile (vision) →
   ideas → uk captions → 6 Qwen-Edit images, quota 2/6 used, gen_trace rows. Fixed: pg_net worker watched the
   wrong database (`pg_net.database_name`).
+* 2026-10-09 4 DONE (tag bc-v1): smoke.sh 16/16 on http://127.0.0.1:3100 AND on https://boostcontent.io through
+  the tunnel (pre-signed media URLs verify through Cloudflare). ~60 s from generate_posts to a ready post with
+  3 images. pgTAP 38/38. Fixed: GoTrue 500 after a DB restart (pooled dead connection).
+* 2026-10-09 5 DONE (tag bc-admin-v1): admin console baked into the bc-caddy image (one compose = whole deploy),
+  verified: stats, users, quota override, posts with images, training export, wrong password 403, stale token 403.
+  Inference admin verified too: 2 nodes live, models, projects, usage, chat, remote logs.
