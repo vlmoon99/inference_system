@@ -24,9 +24,10 @@ Rules for whoever works on it:
 
 ## Next action
 
-Plan steps 0–5 are done. Waiting on the owner for: (1) approve the deletion list below, (2) set both admin
-passwords on first visit. Overnight extras in progress: nightly DB backups, Garage CORS (browser uploads),
-scaling/cloud doc.
+Plan steps 0–5 are done, plus overnight extras (backups, CORS, boot units, scaling doc). **Waiting on the owner:**
+1. Approve the deletion list below (then: delete, and the owner runs `sudo rm -rf ~/Documents/dev/product_dream`).
+2. Set both admin passwords on first visit: http://100.64.0.1:8091 (inference) and http://100.64.0.1:3200 (BoostContent).
+3. Bring the Flutter client: the API is in boostcontent_backend/README.md.
 
 ## Decisions made overnight (owner asleep 2026-10-09 night → review in the morning)
 
@@ -55,6 +56,12 @@ scaling/cloud doc.
 * Garage CORS is not configured yet: needed only for a browser (Flutter web) uploading directly.
 * **boostcontent.io is live again** with the new backend (cloudflared in the bc compose). The root path answers
   "BoostContent"; *.boostcontent.io (old tenant subdomains) reach the same Caddy and get the same answer.
+* Power cut: user units `inf-stack.service` (both Sparks) and `bc-stack.service` wait for the tailnet IP, then
+  `docker compose up -d`. Docker starts before tailscaled, and tailnet-bound ports otherwise stay down.
+  Verified by stopping those containers and starting the units. A real reboot was NOT tested (no sudo, owner asleep).
+* Backups: bc-backup + inf-backup pg_dump daily to `<repo>/.data/backups` (14 days). Garage objects are NOT
+  backed up yet (photos/renders); for S1 move them to R2 (docs/SCALING_AND_CLOUD.md).
+* Test data from tonight was deleted from the BoostContent DB and bucket; smoke.sh now cleans up after itself.
 * Admin passwords: both consoles were tested over HTTP with a temporary password, then reset to first-visit.
   BoostContent admin tokens now die when the password is reset (found during that test).
 
@@ -118,3 +125,6 @@ Everything here is **stopped and disabled** overnight, but **not deleted**. Owne
 * 2026-10-09 5 DONE (tag bc-admin-v1): admin console baked into the bc-caddy image (one compose = whole deploy),
   verified: stats, users, quota override, posts with images, training export, wrong password 403, stale token 403.
   Inference admin verified too: 2 nodes live, models, projects, usage, chat, remote logs.
+* 2026-10-09 extras: nightly pg_dump (both stacks, verified restorable listing), Garage CORS (preflight via
+  Cloudflare OK), boot units on both Sparks, docs/SCALING_AND_CLOUD.md, admin usage keeps names of deleted keys,
+  smoke cleanup. Final: inference smoke 14/14, BoostContent smoke 16/16 (local + public), pgTAP 38/38.
