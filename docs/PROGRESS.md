@@ -32,6 +32,32 @@ processes, spark-2 containers). Stopping is allowed overnight; **nothing is dele
 
 * Owner asked for a non-stop loop overnight with no input. Deletion is the only thing held back.
 
+## Deletion list, awaiting owner approval
+
+Everything here is **stopped and disabled** overnight, but **not deleted**. Owner: reply "approve deletion" (or strike items).
+
+**dgx-spark (this box)**
+| Item | Size | Note |
+|---|---|---|
+| `~/Documents/dev/advertisment_system/` | 8.7 GB | code is in git (origin == local); `backups/` 606 MB of old DB dumps = old client data, deleted by decision |
+| `~/Documents/dev/product_dream/` | 12 KB | root-owned: owner runs `sudo rm -rf ~/Documents/dev/product_dream` |
+| `~/.config/systemd/user/ads-{stack,tunnel,analytics,backup,offload-watch,reflect}.{service,timer}` | | 10 unit files |
+| `~/.config/ads/` | | `tunnel.env` (the CF tunnel token is **copied** into boostcontent_backend's gitignored `.env` first), `searxng/` (settings ported first) |
+| containers `ads-postgres`, `ads-searxng`, `spark-llm`, `spark-embed`, `spark-embed-qwen3`, `pd-comfyui` | | replaced by the `inf-*` compose services |
+| volumes `advertisment_system_ads_pgdata`, `advertisment_system_ads_pgdata_pgvector`, `ef75b0a5…` (anonymous) | | old DB data |
+| image `pgvector/pgvector:pg16` | 0.5 GB | |
+
+**dgx-spark-2 (100.64.0.12)**
+| Item | Note |
+|---|---|
+| `~/ads/` (39 MB) | old checkout |
+| user units `gen-image.service`, `gen-video.service`, `ads-dropcache.{service,timer}` | |
+| containers `ads-comfyui`, `ads-comfyui-vid` | replaced by `inf-comfyui` |
+
+**Never deleted** (no Dockerfile exists, or slow to re-download): images `vllm-node`, `product_dream-svc-embed`,
+`pd-comfyui:base`, `ads-comfyui:v0.33.3` (spark-2), `searxng/searxng`; `~/ComfyUI` on both boxes (85 GB models);
+`~/.cache/huggingface` (38 GB); `inference_system/weights/`; `~/work` (coding LLM).
+
 ## Log (newest last)
 
 * 2026-10-09: plan settled with the owner in a grilling session (PLATFORM_PLAN.md v1). Progress log created.
@@ -43,3 +69,4 @@ processes, spark-2 containers). Stopping is allowed overnight; **nothing is dele
 * 2026-10-09 0c DONE: `knowledge/` (119 files, 1.4 MB): tts-uk, workflows, adapters, hosts, training, docs, and
   `containers/*.inspect.json` (secrets redacted). Found: vllm-node, product_dream-svc-embed and pd-comfyui:base
   have no Dockerfile anywhere. The images are the only copy, so they must never be pruned.
+* 2026-10-09 1a STARTED: deletion list written; now stopping + disabling old services on both Sparks.
