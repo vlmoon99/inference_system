@@ -1,0 +1,45 @@
+# SearXNG for the analytics collectors (ads/analytics/searxng.py): a private
+# meta-search on the Spark, localhost only — no keys, no per-query cost, client
+# queries never leave for a search vendor that keeps them.
+use_default_settings: true
+
+general:
+  instance_name: "ads-search"
+  enable_metrics: false
+
+search:
+  safe_search: 0
+  default_lang: "uk"
+  formats: [html, json]          # json: what the collector reads
+  autocomplete: ""
+
+server:
+  # replaced at first start by searxng.sh (never committed)
+  secret_key: "ultrasecretkey"   # overridden by SEARXNG_SECRET in .env
+  limiter: false                 # one trusted caller on localhost
+  image_proxy: false
+  public_instance: false
+
+outgoing:
+  request_timeout: 6.0
+  max_request_timeout: 12.0
+  pool_connections: 50
+
+# general web + news engines that work without accounts
+engines:
+  - name: google
+    disabled: false
+  - name: bing
+    disabled: false
+  - name: duckduckgo
+    disabled: false
+  - name: brave
+    disabled: false
+  - name: startpage
+    disabled: false
+  - name: wikipedia
+    disabled: false
+  - name: google news
+    disabled: false
+  - name: bing news
+    disabled: false

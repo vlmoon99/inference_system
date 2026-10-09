@@ -16,17 +16,16 @@ Rules for whoever works on it:
 | Step | What | Status |
 |---|---|---|
 | 0 | push old git, move TTS weights, port knowledge | done |
-| 1 | stop + clean old system (owner approves deletion list) | in progress: stop only, deletion waits for owner |
-| 2 | inference v1 on dgx-spark, `smoke.sh`, tag `inf-v1` | not started |
+| 1 | stop + clean old system (owner approves deletion list) | STOPPED (both Sparks); deletion waits for owner |
+| 2 | inference v1 on dgx-spark, `smoke.sh`, tag `inf-v1` | in progress |
 | 3 | dgx-spark-2 replica + node-agent, tag `inf-v1.1` | not started |
 | 4 | BoostContent backend, `smoke.sh`, tag `bc-v1` | not started |
 | 5 | BoostContent admin, tag `bc-admin-v1` | not started |
 
 ## Next action
 
-Step 1a: write the deletion inventory into this file (section "Deletion list, awaiting owner approval"), then
-stop + disable every ads/product_dream service (user units, timers, crontab, docker containers, Next/uvicorn
-processes, spark-2 containers). Stopping is allowed overnight; **nothing is deleted until the owner approves.**
+Step 2: build `hosts/dgx-spark/compose.yaml` (vLLM, qwen3-embed, ComfyUI, inf-image adapter, LiteLLM + its Postgres,
+SearXNG, node-agent, admin), bring it up, then write `smoke.sh`.
 
 ## Decisions made overnight (owner asleep 2026-10-09 night → review in the morning)
 
@@ -70,3 +69,8 @@ Everything here is **stopped and disabled** overnight, but **not deleted**. Owne
   `containers/*.inspect.json` (secrets redacted). Found: vllm-node, product_dream-svc-embed and pd-comfyui:base
   have no Dockerfile anywhere. The images are the only copy, so they must never be pruned.
 * 2026-10-09 1a STARTED: deletion list written; now stopping + disabling old services on both Sparks.
+* 2026-10-09 1 STOPPED: dgx-spark: ads-{stack,tunnel} + 4 timers disabled+stopped; containers ads-postgres, ads-searxng,
+  spark-llm, spark-embed, spark-embed-qwen3, pd-comfyui stopped with restart=no. dgx-spark-2: gen-image, gen-video,
+  ads-dropcache.timer disabled; ads-comfyui(-vid) stopped, restart=no. Verified: no ads processes, `docker ps` empty on both.
+  **boostcontent.io is offline from now on** (tunnel stopped). Tunnel token copied to boostcontent_backend/.env (600, gitignored);
+  SearXNG settings ported to hosts/dgx-spark/searxng (secret moved to hosts/dgx-spark/.env).
