@@ -1,0 +1,156 @@
+# dgx-spark (GB10, 122 GB unified): the gateway host + LLM + embeddings + Qwen-Edit.
+#   cd hosts/dgx-spark && docker compose up -d --build
+# Engines listen on 127.0.0.1; only the gateway, SearXNG and the node-agent/admin bind the tailnet IP.
+# restart: unless-stopped brings everything back after a power cut (tailnet-bound services retry until
+# tailscaled is up). Images marked pull_policy: never exist only on this box (no Dockerfile); never prune them.
+name: inf
+
+x-gpu: &gpu
+  deploy:
+    resources:
+      reservations:
+        devices: [{driver: nvidia, count: all, capabilities: [gpu]}]
+
+services:
+  llm:
+    image: vllm-node:latest
+    pull_policy: never
+    container_name: inf-llm
+    network_mode: host
+    ipc: host
+    shm_size: 32g
+    <<: *gpu
+    restart: unless-stopped
+    environment:
+      HF_HUB_OFFLINE: "1"
+      HF_HOME: /cache/huggingface
+      VLLM_MARLIN_USE_ATOMIC_ADD: "1"
+    volumes: ["${HF_CACHE}:/cache/huggingface"]
+    command: >
+      vllm serve nvidia/Qwen3.6-35B-A3B-NVFP4 --served-model-name nvidia/Qwen3.6-35B-A3B-NVFP4
+      --host 127.0.0.1 --port 8010 --tensor-parallel-size 1 --trust-remote-code --kv-cache-dtype fp8
+      --attention-backend flashinfer --moe-backend marlin --gpu-memory-utilization ${LLM_GPU_UTIL:-0.35}
+      --max-model-len 24576 --max-num-seqs 8 --max-num-batched-tokens 8192 --enable-chunked-prefill
+      --enable-prefix-caching --load-format fastsafetensors --reasoning-parser qwen3
+      --tool-call-parser qwen3_xml --enable-auto-tool-choice
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8010/health')"]
+      interval: 30s
+      start_period: 900s
+
+  embed:
+    image: product_dream-svc-embed:latest
+    pull_policy: never
+    container_name: inf-embed
+    network_mode: host
+    <<: *gpu
+    restart: unless-stopped
+    working_dir: /svc
+    environment:
+      DEVICE: cuda
+      HF_HOME: /data/models
+      HF_HUB_OFFLINE: "1"
+      QWEN3_EMBED_MODEL: Qwen/Qwen3-Embedding-0.6B
+    volumes:
+      - "${HF_CACHE}:/data/models"
+      - "../../services/embed:/svc:ro"
+    command: uvicorn app:app --host 127.0.0.1 --port 8013 --no-access-log
+
+  comfyui:
+    build: ../../services/comfyui
+    image: inf/comfyui:local
+    container_name: inf-comfyui
+    network_mode: host
+    ipc: host
+    <<: *gpu
+    restart: unless-stopped
+    volumes: ["${COMFY_DIR}:/comfy"]
+    command: bash -lc "cd /comfy && python main.py --listen 127.0.0.1 --port 8188 --disable-async-offload --disable-dynamic-vram --highvram"
+
+  image:
+    build: ../../services/image
+    image: inf/image:local
+    container_name: inf-image
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      COMFY_URL: http://127.0.0.1:8188
+      BIND: 127.0.0.1
+      PORT: "8102"
+    depends_on: [comfyui]
+
+  litellm-db:
+    image: postgres:17
+    container_name: inf-litellm-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: litellm
+      POSTGRES_PASSWORD: ${LITELLM_DB_PASSWORD}
+      POSTGRES_DB: litellm
+    ports: ["127.0.0.1:5440:5432"]
+    volumes: ["litellm_pg:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U litellm"]
+      interval: 10s
+
+  litellm:
+    image: ghcr.io/berriai/litellm-database:main-stable@sha256:5a9ff0fd7177372f2ccd8949cb121f67e281f4d13d026af51f9c096c0626f50a   # 1.104.2
+    container_name: inf-litellm
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      DATABASE_URL: postgresql://litellm:${LITELLM_DB_PASSWORD}@127.0.0.1:5440/litellm
+      DISABLE_ADMIN_UI: "True"
+      STORE_MODEL_IN_DB: "False"
+    volumes: ["../../gateway/litellm.yaml:/app/config.yaml:ro"]
+    command: ["--config", "/app/config.yaml", "--host", "${TAILNET_IP}", "--port", "8000", "--num_workers", "2"]
+    depends_on:
+      litellm-db: {condition: service_healthy}
+
+  searxng:
+    image: searxng/searxng:latest@sha256:a07a5cd2da2c63d66e559f9e4d3a3db106cfc6c32fb0ac70abe91cc28bcd7350
+    container_name: inf-searxng
+    restart: unless-stopped
+    environment:
+      SEARXNG_SECRET: ${SEARXNG_SECRET}
+    ports: ["${TAILNET_IP}:8888:8080"]
+    volumes:
+      - "./searxng:/etc/searxng"
+      - "searxng_cache:/var/cache/searxng"
+
+  node-agent:
+    build: ../../services/node-agent
+    image: inf/node-agent:local
+    container_name: inf-node-agent
+    network_mode: host
+    <<: *gpu
+    restart: unless-stopped
+    environment:
+      AGENT_TOKEN: ${AGENT_TOKEN}
+      HOST_NAME: dgx-spark
+      PROJECT: inf
+      BIND: ${TAILNET_IP}
+      PORT: "8090"
+    volumes: ["/var/run/docker.sock:/var/run/docker.sock"]
+
+  admin:
+    build: ../../services/admin
+    image: inf/admin:local
+    container_name: inf-admin
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      BIND: ${TAILNET_IP}
+      PORT: "8091"
+      LITELLM_URL: http://${TAILNET_IP}:8000
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      LITELLM_DB_URL: postgresql://litellm:${LITELLM_DB_PASSWORD}@127.0.0.1:5440/litellm
+      AGENT_TOKEN: ${AGENT_TOKEN}
+      NODES: ${ADMIN_NODES}
+    volumes: ["admin_data:/data"]
+
+volumes:
+  admin_data:
+  litellm_pg:
+  searxng_cache:
