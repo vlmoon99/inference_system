@@ -152,6 +152,17 @@ services:
       NODES: ${ADMIN_NODES}
     volumes: ["admin_data:/data"]
 
+  backup:                          # LiteLLM's keys + usage: pg_dump at start and every 24 h, 14 days kept
+    image: postgres:17
+    container_name: inf-backup
+    restart: unless-stopped
+    environment:
+      PGPASSWORD: ${LITELLM_DB_PASSWORD}
+    volumes: ["${BACKUP_DIR:-../../.data/backups}:/backups"]
+    entrypoint: ["bash", "-c", "while true; do f=/backups/litellm-$$(date -u +%Y%m%dT%H%M).dump; pg_dump -h litellm-db -U litellm -Fc litellm > $$f.tmp && mv $$f.tmp $$f && echo backup $$f $$(du -h $$f | cut -f1); find /backups -name 'litellm-*.dump' -mtime +14 -delete; sleep 86400; done"]
+    depends_on:
+      litellm-db: {condition: service_healthy}
+
 volumes:
   admin_data:
   litellm_pg:
