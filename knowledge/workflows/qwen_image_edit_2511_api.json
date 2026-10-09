@@ -1,0 +1,17 @@
+{
+  "30": {"class_type": "UNETLoader", "inputs": {"unet_name": "qwen_image_edit_2511_fp8_e4m3fn_scaled_lightning_comfyui_4steps_v1.0.safetensors", "weight_dtype": "default"}},
+  "32": {"class_type": "CLIPLoader", "inputs": {"clip_name": "qwen_2.5_vl_7b_fp8_scaled.safetensors", "type": "qwen_image", "device": "default"}},
+  "34": {"class_type": "VAELoader", "inputs": {"vae_name": "qwen_image_vae.safetensors"}},
+  "36": {"class_type": "ModelSamplingAuraFlow", "inputs": {"model": ["30", 0], "shift": 3.1}},
+  "37": {"class_type": "CFGNorm", "inputs": {"model": ["36", 0], "strength": 1.0}},
+  "41": {"class_type": "LoadImage", "inputs": {"image": "__REF__"}},
+  "42": {"class_type": "FluxKontextImageScale", "inputs": {"image": ["41", 0]}},
+  "43": {"class_type": "VAEEncode", "inputs": {"pixels": ["42", 0], "vae": ["34", 0]}},
+  "6": {"class_type": "TextEncodeQwenImageEditPlus", "inputs": {"prompt": "__PROMPT__", "clip": ["32", 0], "vae": ["34", 0], "image1": ["42", 0]}},
+  "33": {"class_type": "TextEncodeQwenImageEditPlus", "inputs": {"prompt": "", "clip": ["32", 0], "vae": ["34", 0], "image1": ["42", 0]}},
+  "44": {"class_type": "FluxKontextMultiReferenceLatentMethod", "inputs": {"conditioning": ["6", 0], "reference_latents_method": "index_timestep_zero"}},
+  "45": {"class_type": "FluxKontextMultiReferenceLatentMethod", "inputs": {"conditioning": ["33", 0], "reference_latents_method": "index_timestep_zero"}},
+  "31": {"class_type": "KSampler", "inputs": {"seed": 0, "steps": 4, "cfg": 1.0, "sampler_name": "euler", "scheduler": "simple", "denoise": 1.0, "model": ["37", 0], "positive": ["44", 0], "negative": ["45", 0], "latent_image": ["43", 0]}},
+  "8": {"class_type": "VAEDecode", "inputs": {"samples": ["31", 0], "vae": ["34", 0]}},
+  "9": {"class_type": "SaveImage", "inputs": {"filename_prefix": "adqwenedit", "images": ["8", 0]}}
+}

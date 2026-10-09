@@ -1,0 +1,22 @@
+# Copy this folder to inference/hosts/<name>/ and fill it in. `make host-validate`
+# checks the schema (inference/hostspec.py); `make host-check HOST=<name>` proves
+# the running services speak the contract (inference/CONTRACT.md).
+name: my-host                 # [a-z0-9-], equals the folder name
+vendor: nvidia                # nvidia | apple | intel | amd | cpu
+memory_gb: 24                 # total accelerator memory (sum across cards)
+unified_memory: false
+status: planned               # planned until conformance passes, then built
+description: one line on what this machine class is for
+
+# What runs where. Keys: llm image video tts (the contract kinds) plus optional
+# embed comfyui postgres. Omit a kind the box cannot serve — the worker will
+# simply never claim jobs that need it.
+placement:
+  llm:   { engine: llama.cpp, device: cuda:0, port: 8010, model: "", mem_gb: 20 }
+  image: { engine: comfy,     device: cuda:0, port: 8102, model: flux1-dev-fp8, mem_gb: 17 }
+  tts:   { engine: kokoro,    device: cpu,    port: 8105, model: kokoro-82m }
+  # video: { engine: comfy, device: cuda:1, port: 8104, model: ltx2, mem_gb: 22 }
+
+worker:
+  concurrency: 2
+  claims: auto                # auto = from /health capabilities | all | [explicit, kinds]

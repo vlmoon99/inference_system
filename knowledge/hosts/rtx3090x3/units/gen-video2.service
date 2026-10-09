@@ -1,0 +1,16 @@
+[Unit]
+Description=gen-video #2 adapter :8114 (contract v1; ltx2, the Spark's workflows and weights)
+After=comfy-vid2.service
+Requires=comfy-vid2.service
+[Service]
+User=@USER@
+EnvironmentFile=@ADS@/model-host.env
+# VIDEO_MODELS pins the advertised list to the Spark's (ltx2 only), even if old Wan files linger.
+# KEEP_WARM=vram: render a tiny clip/image at start and whenever the model drops off the GPU (inference/adapters/keepwarm.py)
+Environment=COMFY_URL=http://localhost:8190 COMFY_OUTPUT=@CF@/output-vid2 COMFY_INPUT=@CF@/input-vid2 VIDEO_MODELS=ltx2 KEEP_WARM=vram
+WorkingDirectory=@REPO@
+ExecStart=@REPO@/.venv/bin/uvicorn app:app --host 0.0.0.0 --port 8114 --app-dir inference/adapters/gen-video
+Restart=always
+RestartSec=5
+[Install]
+WantedBy=multi-user.target

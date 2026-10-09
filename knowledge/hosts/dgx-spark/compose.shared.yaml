@@ -1,0 +1,66 @@
+# Reinstall recipe for the Spark's SHARED tier. These containers already exist on
+# the box with restart=unless-stopped (services.sh only `docker start`s them); this
+# file is how they are recreated on a fresh Spark. Images/flags mirror the live
+# containers as of 2026-09-18; verify with `docker inspect <name>` before relying on
+# a value that is not marked [verified].
+#
+#   docker compose -f compose.shared.yaml up -d            # all three
+#   docker compose -f compose.shared.yaml up -d spark-llm  # one
+name: spark-shared
+
+services:
+  spark-llm:
+    # [verified] image name; flags from docs (max-model-len 24576, kv fp8,
+    # max-num-seqs 8) — the full live command is in the container's inspect.
+    # gpu-util 0.20 since 2026-09-27: the KV cache at 0.35 was ~10x the
+    # workload (docs/CAMPAIGN_THROUGHPUT_PLAN.md); the ~18 GB freed is what
+    # lets Qwen-Image-2512 stay resident beside LTX-2.5 (docs/MODELS.md).
+    image: vllm-node
+    container_name: spark-llm
+    restart: unless-stopped
+    ipc: host
+    gpus: all
+    ports: ["8010:8000"]
+    volumes:
+      - ${HF_CACHE:-/home/server/.cache/huggingface}:/root/.cache/huggingface
+    command: >
+      nvidia/Qwen3.6-35B-A3B-NVFP4
+      --host 0.0.0.0 --port 8000
+      --gpu-memory-utilization 0.20 --max-model-len 24576
+      --kv-cache-dtype fp8 --max-num-seqs 8
+      --enable-chunked-prefill --enable-prefix-caching
+      --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_xml
+
+  spark-embed:
+    # [verified] product_dream-svc-embed image (bge-m3, OpenAI-compatible /v1/embeddings)
+    image: product_dream-svc-embed:latest
+    container_name: spark-embed
+    restart: unless-stopped
+    gpus: all
+    ports: ["8011:8011"]
+    environment:
+      PORT: "8011"
+      DEVICE: ${EMBED_DEVICE:-cpu}   # bge-m3 is ~1 GB; on CPU it never loses the unified-memory race to vLLM/ComfyUI/video (OOM seen 2026-09-26)
+      EMBED_MODEL_ID: BAAI/bge-m3
+      MAX_LEN: "1024"
+      HF_HOME: /data/models
+    volumes:
+      - ${HF_CACHE:-/home/server/.cache/huggingface}:/data/models
+
+  pd-comfyui:
+    # ComfyUI 0.33.3 + ComfyUI-GGUF, weights mounted from the host. The live
+    # container was built by hand; rebuild from inference/hosts/rtx3090x3/README.md
+    # §ComfyUI (same pins) if it is ever lost. Spark-only flags: unified memory
+    # makes async offload counterproductive.
+    image: pd-comfyui:latest
+    container_name: pd-comfyui
+    restart: unless-stopped
+    gpus: all
+    ports: ["8188:8188"]
+    volumes:
+      - /home/server/ComfyUI/models:/app/models
+      - /home/server/ComfyUI/output:/app/output
+      - /home/server/ComfyUI/input:/app/input
+    command: >
+      python main.py --listen 0.0.0.0 --port 8188
+      --disable-async-offload --disable-dynamic-vram

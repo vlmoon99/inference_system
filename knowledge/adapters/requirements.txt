@@ -1,0 +1,8 @@
+# Model-adapter service deps (gen-image-comfy, gen-video-comfy, gen-tts-kokoro,
+# market-agent) — installed into the shared root .venv by `make install`.
+# fastapi/uvicorn/httpx/asyncpg come from backend/requirements.txt.
+soundfile>=0.12
+scipy>=1.11  # gen-tts-kokoro polish/joiner/radtts filters; was only ever a transitive install
+kokoro-onnx>=0.4
+piper-tts>=1.2
+num2words>=0.5

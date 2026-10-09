@@ -1,0 +1,19 @@
+[Unit]
+Description=gen-video adapter :8104 (contract v1; ltx2, kept resident in its own ComfyUI :8189)
+[Service]
+EnvironmentFile=@ADS@/model-host.env
+# Its own ComfyUI (:8189): image and video never evict each other, and an image never queues
+# behind a video render. KEEP_WARM_GAUGE=process: re-warm when ComfyUI's own memory drops
+# below KEEP_WARM_MIN_GB (LTX transformer + VAEs ≈ 23 GB + Gemma encoder on the GPU ≈ 15 GB = 38 GB).
+# LTX_TEXT_ENCODER_DEVICE=default: encoder on the GPU — 78 s vs 127 s per new-prompt 704×1280×121
+# video; fits only because Edit-2511 moved to dgx-spark (README status log 2026-10-07).
+# No VLLM_SLEEP_URL: there is no vLLM on this box. Consecutive LTX renders keep the transformer resident.
+Environment=COMFY_URL=http://localhost:8189 COMFY_OUTPUT=@CF@/output COMFY_INPUT=@CF@/input
+Environment=WAN_MODEL=ltx2 VIDEO_MODELS=ltx2 VIDEO_EVICT_BEFORE_LTX=0
+Environment=KEEP_WARM=vram KEEP_WARM_GAUGE=process KEEP_WARM_MIN_GB=32 LTX_TEXT_ENCODER_DEVICE=default
+WorkingDirectory=@REPO@
+ExecStart=@REPO@/.venv/bin/uvicorn app:app --host 0.0.0.0 --port 8104 --app-dir inference/adapters/gen-video
+Restart=always
+RestartSec=5
+[Install]
+WantedBy=default.target

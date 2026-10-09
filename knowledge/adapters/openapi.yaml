@@ -1,0 +1,264 @@
+openapi: 3.1.0
+info:
+  title: advertisment_system inference contract
+  version: "1.0"
+  description: |
+    The three endpoints every media service (image, video, tts) must speak.
+    Prose and per-kind field meanings: CONTRACT.md. LLMs are OpenAI-compatible
+    servers and are not described here.
+paths:
+  /health:
+    get:
+      summary: liveness + capabilities
+      responses:
+        "200":
+          description: always 200 when the process is up; `loaded` says whether it can generate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+  /system:
+    get:
+      summary: optional — what the box is doing now (GPUs, load, RAM) for the admin Infra page
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/System"
+        "404": { description: an adapter without it; the control plane shows the host without live numbers }
+  /generate:
+    post:
+      summary: run one generation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/ImageRequest"
+                - $ref: "#/components/schemas/VideoRequest"
+                - $ref: "#/components/schemas/TtsRequest"
+      responses:
+        "200":
+          description: files are relative to the service's ASSETS_DIR
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ImageResponse"
+                  - $ref: "#/components/schemas/VideoResponse"
+                  - $ref: "#/components/schemas/TtsResponse"
+        "422":
+          description: unsupported model / bad request — never retried by the worker
+        "5xx":
+          description: transient; the worker marks the endpoint unhealthy and fails over
+  /files/{path}:
+    get:
+      summary: fetch a generated file
+      parameters:
+        - in: path
+          name: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: the bytes }
+        "404": { description: unknown, or resolves outside ASSETS_DIR }
+components:
+  schemas:
+    Health:
+      type: object
+      required: [loaded]
+      properties:
+        ok: { type: boolean }
+        loaded: { type: boolean }
+        host: { type: string, description: name from host.yaml }
+        engine: { type: string }
+        device: { type: string }
+        model: { type: string }
+        capabilities:
+          oneOf:
+            - $ref: "#/components/schemas/ImageCaps"
+            - $ref: "#/components/schemas/VideoCaps"
+            - $ref: "#/components/schemas/TtsCaps"
+            - $ref: "#/components/schemas/AvatarCaps"
+    System:
+      type: object
+      properties:
+        host: { type: string }
+        gpus:
+          type: array
+          items:
+            type: object
+            properties:
+              index: { type: integer }
+              name: { type: string }
+              util: { type: [number, "null"], description: percent }
+              mem_used_mb: { type: [number, "null"], description: null on unified-memory boxes }
+              mem_total_mb: { type: [number, "null"] }
+              temp_c: { type: [number, "null"] }
+              power_w: { type: [number, "null"] }
+              power_limit_w: { type: [number, "null"] }
+        load: { type: array, items: { type: number }, description: 1/5/15-min load average }
+        cpus: { type: integer }
+        mem:
+          type: object
+          properties:
+            total_gb: { type: number }
+            used_gb: { type: number }
+            swap_total_gb: { type: number }
+            swap_used_gb: { type: number }
+        unified: { type: boolean, description: GPU memory is system RAM (GB10) }
+    ImageCaps:
+      type: object
+      required: [kind, models]
+      properties:
+        kind: { const: image }
+        models:
+          type: array
+          items: { type: string, enum: [flux1-dev-fp8, qwen-image-2512, qwen-image-edit-2511] }
+          description: The rungs of the image ladder this host has weights for.
+        edit:
+          type: array
+          items: { type: string }
+          description: The rungs that EDIT a reference photo (ref_image_path / ref_image_b64). Sent without one, an edit rung renders from text on a blank width x height canvas.
+        default: { type: string, description: The rung a request without `model` gets (IMAGE_DEFAULT_MODEL). }
+        licences:
+          type: object
+          additionalProperties: { type: string }
+          description: Per-model licence id (e.g. apache-2.0, flux-dev-non-commercial) so a worker can refuse a rung a plan is not licensed for.
+        lora: { type: boolean }
+        max_side: { type: integer }
+    VideoCaps:
+      type: object
+      required: [kind, models]
+      properties:
+        kind: { const: video }
+        models:
+          type: array
+          items: { type: string, enum: [5b, 14b, ltx2] }
+        audio: { type: boolean }
+        i2v: { type: boolean }
+        max_frames: { type: integer }
+    TtsCaps:
+      type: object
+      required: [kind, langs]
+      properties:
+        kind: { const: tts }
+        langs: { type: array, items: { type: string } }
+        clone: { type: boolean }
+    AvatarCaps:
+      type: object
+      required: [kind, models]
+      properties:
+        kind: { const: avatar }
+        models: { type: array, items: { type: string } }
+        audio: { type: boolean, description: The speech is muxed into the output. }
+        fps: { type: integer }
+        max_seconds: { type: number }
+        licence: { type: string }
+    AvatarRequest:
+      type: object
+      required: [prompt]
+      description: One face photo + one speech audio -> a video of that person speaking it (lip-synced). The voice is made by the TTS service first.
+      properties:
+        prompt: { type: string, description: Scene guidance ("a person talking to the camera…"). }
+        product_id: { type: string, default: adhoc }
+        ref_image_path: { type: string, nullable: true }
+        ref_image_b64: { type: string, nullable: true }
+        audio_path: { type: string, nullable: true, description: The speech, relative to the host's assets dir (TTS output). }
+        audio_b64: { type: string, nullable: true, description: The speech as base64 for a remote worker; wins over audio_path. }
+        audio_ext: { type: string, default: wav }
+        width: { type: integer, default: 480 }
+        height: { type: integer, default: 832 }
+        steps: { type: integer, default: 6 }
+        seed: { type: integer, nullable: true }
+    ImageRequest:
+      type: object
+      required: [prompt]
+      properties:
+        prompt: { type: string }
+        product_id: { type: string, default: adhoc }
+        kind: { type: string, default: image }
+        n: { type: integer, default: 1 }
+        width: { type: integer, default: 1024 }
+        height: { type: integer, default: 1024 }
+        steps: { type: integer, nullable: true }
+        seed: { type: integer, nullable: true }
+        lora_name: { type: string, nullable: true }
+        lora_strength: { type: number, nullable: true }
+        lora_base: { type: string, nullable: true, description: The rung the LoRA was trained on; the host skips the LoRA when rendering another rung. }
+        model: { type: string, nullable: true, description: A rung from ImageCaps.models; absent = the host default. }
+        ref_image_path: { type: string, nullable: true, description: Edit rungs — the photo to edit, relative to the host's assets dir. }
+        ref_image_b64: { type: string, nullable: true, description: Edit rungs — the photo as base64 for a worker on another machine; wins over ref_image_path. }
+        ref_fit: { type: string, nullable: true, enum: [contain], description: Edit rungs — fit the whole photo into width x height (blurred fill) so the output has the requested frame; absent = output follows the reference. }
+    VideoRequest:
+      type: object
+      required: [prompt]
+      properties:
+        prompt: { type: string }
+        product_id: { type: string, default: adhoc }
+        ref_image_path: { type: string, nullable: true }
+        ref_image_b64:
+          type: string
+          nullable: true
+          description: >
+            The reference image as base64 bytes, for a worker on another machine whose
+            assets this host cannot read. Wins over ref_image_path when both are given.
+        quality: { type: string, default: draft }
+        width: { type: integer }
+        height: { type: integer }
+        num_frames: { type: integer }
+        seed: { type: integer, nullable: true }
+        model: { type: string, enum: [5b, 14b, ltx2], nullable: true }
+    TtsRequest:
+      type: object
+      required: [text]
+      properties:
+        text: { type: string }
+        product_id: { type: string, default: adhoc }
+        lang: { type: string, default: en }
+        voice: { type: string, nullable: true }
+        pronunciations: { type: object, nullable: true }
+        ref_audio_path: { type: string, nullable: true }
+    ImageResponse:
+      type: object
+      required: [images]
+      properties:
+        model: { type: string }
+        images:
+          type: array
+          items:
+            type: object
+            required: [path]
+            properties:
+              path: { type: string, description: relative to ASSETS_DIR }
+              seed: { type: integer }
+              elapsed_s: { type: number }
+    VideoResponse:
+      type: object
+      required: [video]
+      properties:
+        video:
+          type: object
+          required: [path]
+          properties:
+            path: { type: string }
+            elapsed_s: { type: number }
+            frames: { type: integer }
+            model: { type: string }
+            quality: { type: string }
+    TtsResponse:
+      type: object
+      required: [audio]
+      properties:
+        model: { type: string }
+        engine: { type: string }
+        audio:
+          type: object
+          required: [path]
+          properties:
+            path: { type: string }
+            sample_rate: { type: integer }
+            duration_s: { type: number }
+            elapsed_s: { type: number }

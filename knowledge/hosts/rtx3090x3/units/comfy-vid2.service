@@ -1,0 +1,13 @@
+[Unit]
+Description=ComfyUI video #2 (LTX-2.5 int8-convrot, same files as comfy-vid) GPU2 :8190 — GPU2 role "video"
+After=network-online.target
+[Service]
+User=@USER@
+EnvironmentFile=@ADS@/model-host.env
+Environment=CUDA_VISIBLE_DEVICES=2
+WorkingDirectory=@CF@
+ExecStart=@CF@/.venv/bin/python main.py --listen 0.0.0.0 --port 8190 --output-directory @CF@/output-vid2 --input-directory @CF@/input-vid2 --database-url sqlite:///@CF@/user/comfyui-vid2.db
+Restart=always
+RestartSec=5
+[Install]
+WantedBy=multi-user.target

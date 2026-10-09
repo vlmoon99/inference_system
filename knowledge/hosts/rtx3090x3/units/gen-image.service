@@ -1,0 +1,15 @@
+[Unit]
+Description=gen-image adapter :8102 (contract v1)
+After=comfy-img.service
+Requires=comfy-img.service
+[Service]
+User=@USER@
+EnvironmentFile=@ADS@/model-host.env
+# KEEP_WARM=vram: render a tiny clip/image at start and whenever the model drops off the GPU (inference/adapters/keepwarm.py)
+Environment=COMFY_URL=http://localhost:8188 COMFY_OUTPUT=@CF@/output-img IMAGE_DEFAULT_MODEL=qwen-image-2512 KEEP_WARM=vram
+WorkingDirectory=@REPO@
+ExecStart=@REPO@/.venv/bin/uvicorn app:app --host 0.0.0.0 --port 8102 --app-dir inference/adapters/gen-image
+Restart=always
+RestartSec=5
+[Install]
+WantedBy=multi-user.target

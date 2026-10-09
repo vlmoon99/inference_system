@@ -1,0 +1,5 @@
+[Unit]
+Description=drop the weight files' page cache when it poses as used GPU memory (dgx-spark-2, see dropcache.sh)
+[Service]
+Type=oneshot
+ExecStart=/bin/sh @REPO@/inference/hosts/dgx-spark-2/dropcache.sh @CF@/models

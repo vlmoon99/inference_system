@@ -1,0 +1,13 @@
+[Unit]
+Description=ComfyUI image (FLUX.1-dev) GPU0 :8188
+After=network-online.target
+[Service]
+User=@USER@
+EnvironmentFile=@ADS@/model-host.env
+Environment=CUDA_VISIBLE_DEVICES=0
+WorkingDirectory=@CF@
+ExecStart=@CF@/.venv/bin/python main.py --listen 0.0.0.0 --port 8188 --output-directory @CF@/output-img --input-directory @CF@/input-img
+Restart=always
+RestartSec=5
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,17 @@
+[Unit]
+Description=gen-image adapter :8102 (contract v1; Qwen-Image-2512, kept resident in ComfyUI :8188)
+[Service]
+EnvironmentFile=@ADS@/model-host.env
+# 2512 only (2026-10-07): Edit-2511 lives warm on dgx-spark (SPARK_KEEPS=edit), so the ~20 GB
+# it held here goes to the LTX text encoder on the GPU (gen-video.service). KEEP_WARM_GAUGE=process
+# reads ComfyUI's own torch memory (~27.6 GB with 2512 + encoder) — the device reading is
+# meaningless on unified memory. Below KEEP_WARM_MIN_GB = something was dropped → re-warm.
+Environment=COMFY_URL=http://localhost:8188 COMFY_OUTPUT=@CF@/output COMFY_INPUT=@CF@/input
+Environment=IMAGE_MODELS=qwen-image-2512 IMAGE_DEFAULT_MODEL=qwen-image-2512
+Environment=KEEP_WARM=vram KEEP_WARM_GAUGE=process KEEP_WARM_MIN_GB=22 KEEP_WARM_MODELS=qwen-image-2512
+WorkingDirectory=@REPO@
+ExecStart=@REPO@/.venv/bin/uvicorn app:app --host 0.0.0.0 --port 8102 --app-dir inference/adapters/gen-image
+Restart=always
+RestartSec=5
+[Install]
+WantedBy=default.target

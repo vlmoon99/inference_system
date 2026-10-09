@@ -1,0 +1,13 @@
+[Unit]
+Description=gen-tts adapter :8105 (CPU: kokoro en, piper uk/ru)
+After=network-online.target
+[Service]
+User=@USER@
+EnvironmentFile=@ADS@/model-host.env
+Environment=KOKORO_ONNX=@REPO@/data/models/kokoro/kokoro-v1.0.onnx KOKORO_VOICES=@REPO@/data/models/kokoro/voices-v1.0.bin PIPER_VOICES_DIR=@REPO@/data/models/piper TTS_ENGINE_UK=piper TTS_ENGINE_RU=piper DEVICE=cpu
+WorkingDirectory=@REPO@
+ExecStart=@REPO@/.venv/bin/uvicorn app:app --host 0.0.0.0 --port 8105 --app-dir inference/adapters/gen-tts
+Restart=always
+RestartSec=5
+[Install]
+WantedBy=multi-user.target

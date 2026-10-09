@@ -1,0 +1,12 @@
+[Unit]
+Description=ads-worker (queue worker for advertisment_system; claims from host capabilities)
+After=network-online.target gen-image.service gen-video.service gen-tts.service
+[Service]
+User=@USER@
+EnvironmentFile=@ADS@/worker.env
+WorkingDirectory=@REPO@/backend
+ExecStart=@REPO@/.venv/bin/python -m ads.worker
+Restart=always
+RestartSec=5
+[Install]
+WantedBy=multi-user.target

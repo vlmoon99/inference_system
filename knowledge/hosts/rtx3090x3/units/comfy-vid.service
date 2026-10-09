@@ -1,0 +1,13 @@
+[Unit]
+Description=ComfyUI video (LTX-2.5 int8-convrot, Gemma on CPU) GPU1 :8189
+After=network-online.target
+[Service]
+User=@USER@
+EnvironmentFile=@ADS@/model-host.env
+Environment=CUDA_VISIBLE_DEVICES=1
+WorkingDirectory=@CF@
+ExecStart=@CF@/.venv/bin/python main.py --listen 0.0.0.0 --port 8189 --output-directory @CF@/output-vid --input-directory @CF@/input-vid --database-url sqlite:///@CF@/user/comfyui-vid.db
+Restart=always
+RestartSec=5
+[Install]
+WantedBy=multi-user.target

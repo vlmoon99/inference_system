@@ -15,8 +15,8 @@ Rules for whoever works on it:
 
 | Step | What | Status |
 |---|---|---|
-| 0 | push old git, move TTS weights, port knowledge | in progress |
-| 1 | stop + clean old system (owner approves deletion list) | not started |
+| 0 | push old git, move TTS weights, port knowledge | done |
+| 1 | stop + clean old system (owner approves deletion list) | in progress: stop only, deletion waits for owner |
 | 2 | inference v1 on dgx-spark, `smoke.sh`, tag `inf-v1` | not started |
 | 3 | dgx-spark-2 replica + node-agent, tag `inf-v1.1` | not started |
 | 4 | BoostContent backend, `smoke.sh`, tag `bc-v1` | not started |
@@ -24,8 +24,13 @@ Rules for whoever works on it:
 
 ## Next action
 
-Step 0c: port the knowledge from `advertisment_system` into `knowledge/` (TTS uk chain code + docs, ComfyUI
-workflows + weights.lock, host READMEs with measured numbers, adapters needed for v1 as a starting point).
+Step 1a: write the deletion inventory into this file (section "Deletion list, awaiting owner approval"), then
+stop + disable every ads/product_dream service (user units, timers, crontab, docker containers, Next/uvicorn
+processes, spark-2 containers). Stopping is allowed overnight; **nothing is deleted until the owner approves.**
+
+## Decisions made overnight (owner asleep 2026-10-09 night → review in the morning)
+
+* Owner asked for a non-stop loop overnight with no input. Deletion is the only thing held back.
 
 ## Log (newest last)
 
@@ -35,3 +40,6 @@ workflows + weights.lock, host READMEs with measured numbers, adapters needed fo
   verified with `git fetch` (main == origin/main, the 3 branches exist on origin). The other 4 ai/* were already merged.
 * 2026-10-09 0b DONE: `advertisment_system/data/models` (7.7 GB, 119 files) moved to `weights/tts/` (gitignored).
   Sources in `weights/weights.lock`, per-file hashes in `weights/tts.sha256` (not committed).
+* 2026-10-09 0c DONE: `knowledge/` (119 files, 1.4 MB): tts-uk, workflows, adapters, hosts, training, docs, and
+  `containers/*.inspect.json` (secrets redacted). Found: vllm-node, product_dream-svc-embed and pd-comfyui:base
+  have no Dockerfile anywhere. The images are the only copy, so they must never be pruned.

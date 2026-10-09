@@ -1,0 +1,27 @@
+# The exact weight files the served workflows load (flux1_dev_api.json, ltx25_*_api.json).
+# Every host that serves image or ltx2 video installs THESE files — no substitutes, no
+# re-quantisations — so the same request renders the same way on every machine.
+# sha256 = the Hugging Face LFS hash, checked 2026-09-25 to equal the Spark's files.
+#
+# sha256                                                            ComfyUI models/ path                                                          HF repo              HF path
+8e91b68084b53a7fc44ed2a3756d821e355ac1a7b6fe29be760c1db532f3d88a  checkpoints/flux1-dev-fp8.safetensors                                          Comfy-Org/flux1-dev  flux1-dev-fp8.safetensors
+e0ab0fdf569cd01a382f19bd87681f628879dea7ad51fe5a3799b6c18c7b2d03  loras/Hyper-FLUX.1-dev-8steps-lora.safetensors                                 ByteDance/Hyper-SD   Hyper-FLUX.1-dev-8steps-lora.safetensors
+c4279eeff115cbeaca494bd2183e7d768c38fe85a184dc6afbb7159157c44334  diffusion_models/ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors  Lightricks/LTX-2.5  diffusion_models/ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors
+6ce688a0aa98a5fa36a9f1e6c3f42152a498cc2b53ee8c15674c64244f91487f  text_encoders/gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors      Lightricks/LTX-2.5  text_encoders/gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors
+847e14ca7f3355debca0cea4eaa24ac0fbcdf0061da054ac89ca638a869ddba3  vae/ltx-2.5-video-vae-bf16.safetensors                                         Lightricks/LTX-2.5  vae/ltx-2.5-video-vae-bf16.safetensors
+c52733d37f6a7fb7949c3dc0fb468c6cb2169e4d836983a73babb9f0d54837a5  vae/ltx-2.5-audio-vae-bf16.safetensors                                         Lightricks/LTX-2.5  vae/ltx-2.5-audio-vae-bf16.safetensors
+eb5a71fe4068ee87ccdb1c3aa635e547ca76bd2d30ae20ae889f2c325c0677e8  latent_upscale_models/ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors  Lightricks/LTX-2.5  latent_upscale_models/ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors
+# Image ladder, quality tier (Apache-2.0): Qwen-Image-2512 fp8 with the Lightning 4-step LoRA fused (lightx2v), its encoder and VAE.
+3e10fc0fecdafc7ba0f60cf804f816d1403accdfa67eea0a15e692d8b6c37fe9  diffusion_models/qwen_image_2512_fp8_e4m3fn_scaled_comfyui_4steps_v1.0.safetensors  lightx2v/Qwen-Image-2512-Lightning  qwen_image_2512_fp8_e4m3fn_scaled_comfyui_4steps_v1.0.safetensors
+cb5636d852a0ea6a9075ab1bef496c0db7aef13c02350571e388aea959c5c0b4  text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors                            Comfy-Org/Qwen-Image_ComfyUI       split_files/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors
+a70580f0213e67967ee9c95f05bb400e8fb08307e017a924bf3441223e023d1f  vae/qwen_image_vae.safetensors                                                 Comfy-Org/Qwen-Image_ComfyUI       split_files/vae/qwen_image_vae.safetensors
+# Image ladder, edit rung (Apache-2.0): Qwen-Image-Edit-2511 fp8 with the Lightning 4-step LoRA fused; shares the Qwen encoder and VAE above.
+16d03fd9bab36b0a588e77db23825629df62ab99fc3e62f3a36887b201dcc36f  diffusion_models/qwen_image_edit_2511_fp8_e4m3fn_scaled_lightning_comfyui_4steps_v1.0.safetensors  lightx2v/Qwen-Image-Edit-2511-Lightning  qwen_image_edit_2511_fp8_e4m3fn_scaled_lightning_comfyui_4steps_v1.0.safetensors
+# Avatar (talking spokesperson, Apache-2.0): InfiniteTalk on Wan2.1-I2V-14B-480P via ComfyUI-WanVideoWrapper (gen-avatar :8106).
+996dbad030df09b0b3c8e764f0fb5a81b98b220ab89524d6a9369e9ed882791f  diffusion_models/Wan2_1-I2V-14B-480P_fp8_e4m3fn.safetensors                         Kijai/WanVideo_comfy               Wan2_1-I2V-14B-480P_fp8_e4m3fn.safetensors
+bf212c5c647eaf1c019b2158d2edf4a360d97e38b746c4bac994fee485e09fc3  diffusion_models/Wan2_1-InfiniTetalk-Single_fp16.safetensors                       Kijai/WanVideo_comfy               InfiniteTalk/Wan2_1-InfiniTetalk-Single_fp16.safetensors
+3fe5173588270c22505d4f9158bb1644b78331b8614206a97e92760b960c9ffa  text_encoders/umt5-xxl-enc-fp8_e4m3fn.safetensors                                  Kijai/WanVideo_comfy               umt5-xxl-enc-fp8_e4m3fn.safetensors
+1ab9a32cc2c740f6e39d80d367ce5dcc28db8c71b79b28670546b8973e9d75f9  vae/Wan2_1_VAE_bf16.safetensors                                                    Kijai/WanVideo_comfy               Wan2_1_VAE_bf16.safetensors
+85c4a61c30e0497aa44b91d93a893b624708461a56fe5485183b28fa07e2dfb3  loras/lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors               Kijai/WanVideo_comfy               Lightx2v/lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors
+64a7ef761bfccbadbaa3da77366aac4185a6c58fa5de5f589b42a65bcc21f161  clip_vision/clip_vision_h.safetensors                                              Comfy-Org/Wan_2.1_ComfyUI_repackaged  split_files/clip_vision/clip_vision_h.safetensors
+000813e441020f18cff844c969d2d5d4adc2a5ce46b2db1f23950b05d88805b4  wav2vec2/wav2vec2-chinese-base_fp16.safetensors                                    Kijai/wav2vec2_safetensors         wav2vec2-chinese-base_fp16.safetensors

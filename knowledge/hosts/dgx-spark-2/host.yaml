@@ -1,0 +1,36 @@
+# DGX Spark #2 (GB10) — the image + video executor. Model services only; driven by
+# a worker on dgx-spark (workers/dgx-spark-2.env). Setup + numbers: README.md.
+name: dgx-spark-2
+vendor: nvidia
+memory_gb: 122            # unified, same box as dgx-spark; measure MemTotal in README step 0
+unified_memory: true
+status: built
+description: >
+  Second Spark at 100.64.0.12. Keeps the Qwen-Image ladder (2512 + Edit-2511) and
+  LTX-2.5 resident so image and video stop evicting each other on the primary Spark.
+
+placement:
+  comfyui:
+    engine: comfy
+    device: cuda
+    port: 8188
+    model: ComfyUI v0.33.3 (+ComfyUI-GGUF, KJNodes), NGC pytorch 25.09
+    notes: two containers — ads-comfyui :8188 (image) and ads-comfyui-vid :8189 (video); each evicts only its own models
+  image:
+    engine: comfy
+    device: cuda
+    port: 8102
+    model: qwen-image-2512 fp8 Lightning 4-step (Edit-2511 warm on dgx-spark since 2026-10-07)
+    mem_gb: 28
+    notes: 2512 + Edit-2511 both kept warm (KEEP_WARM_MODELS, process gauge); estimate until README step 3 measures it
+  video:
+    engine: comfy
+    device: cuda
+    port: 8104
+    model: ltx2 (LTX-2.5 22B distilled int8-convrot), Gemma-4-12B encoder on the GPU (LTX_TEXT_ENCODER_DEVICE=default); ComfyUI :8189, kept warm
+    mem_gb: 38
+    notes: estimate incl. activations; phase 2 moves the encoder to GPU only if headroom ≥ 8 GB
+
+worker:
+  concurrency: 4
+  claims: auto

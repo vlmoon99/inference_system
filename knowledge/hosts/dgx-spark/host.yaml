@@ -1,0 +1,68 @@
+# DGX Spark (GB10) — the primary host: models + control plane + web apps on one box.
+name: dgx-spark
+vendor: nvidia
+memory_gb: 122            # unified; ComfyUI and vLLM size themselves from MemFree (see README)
+unified_memory: true
+status: built
+description: >
+  Everything on one box. The LLM, embeddings and ComfyUI containers are a SHARED tier
+  used by other tailnet projects — referenced (started if down), never stopped by
+  down.sh without --all. compose.shared.yaml is their reinstall recipe.
+
+placement:
+  llm:
+    engine: vllm
+    device: cuda
+    port: 8010
+    model: nvidia/Qwen3.6-35B-A3B-NVFP4      # multimodal, 35B MoE / 3B active, gpu-util 0.35
+    mem_gb: 42
+    shared: true
+    notes: docker spark-llm; also serves the learning app
+  embed:
+    engine: bge-m3
+    device: cuda
+    port: 8011
+    model: BAAI/bge-m3
+    mem_gb: 4
+    shared: true
+    notes: docker spark-embed; analytics relevance filter + other projects
+  gate:
+    engine: metricx-24-large
+    device: cpu
+    port: 8012
+    model: google/metricx-24-hybrid-large-v2p6
+    mem_gb: 5
+    shared: true
+    notes: inference/adapters/mt-gate via gate.sh; translation quality gate (QE), CPU only, Apache-2.0
+  comfyui:
+    engine: comfy
+    device: cuda
+    port: 8188
+    model: ComfyUI 0.33.3 (+ComfyUI-GGUF)
+    shared: true
+    notes: docker pd-comfyui; backs image AND video
+  image:
+    engine: comfy
+    device: cuda
+    port: 8102
+    model: qwen-image-edit-2511 (fp8, Lightning 4-step) — the only image model loaded here since 2026-10-03
+    mem_gb: 17
+    notes: inference/adapters/gen-image; text-only requests render on a blank canvas; ~20 s warm per 1024² image
+  video:
+    engine: comfy
+    device: cuda
+    port: 8104
+    model: ltx2 (LTX-2.5 22B int8-convrot) — the only video model with weights on this box (2026-09-18)
+    mem_gb: 28
+    notes: inference/adapters/gen-video; Wan 2.2 weights are NOT installed, so 5b/14b are not advertised; LTX resident ~105 s/short, cold ~200 s; peak 108 GB
+  tts:
+    engine: kokoro
+    device: cpu
+    port: 8105
+    model: kokoro-82m (en) · radtts-uk mykyta (uk, CUDA) · f5 (ru)
+    mem_gb: 1
+    notes: inference/adapters/gen-tts; Ukrainian RadTTS is the engine of record
+
+worker:
+  concurrency: 2
+  claims: auto

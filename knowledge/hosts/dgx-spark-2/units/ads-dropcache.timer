@@ -1,0 +1,8 @@
+[Unit]
+Description=ads-dropcache every minute (dgx-spark-2)
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1min
+AccuracySec=10s
+[Install]
+WantedBy=timers.target

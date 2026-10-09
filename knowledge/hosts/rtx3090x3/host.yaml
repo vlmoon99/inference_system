@@ -1,0 +1,48 @@
+# 3× RTX 3090 (Ampere sm_86, 24 GB each, no unified memory) — the weekend worker box.
+name: rtx3090x3
+vendor: nvidia
+memory_gb: 72
+unified_memory: false
+status: planned            # 2026-09-25 moved to the Spark's exact weights; re-run conformance + parity.py, then built
+description: >
+  Three independent 24 GB cards: one ComfyUI process per GPU role plus vLLM on the
+  third. Image and video run the Spark's files byte for byte (inference/workflows/
+  weights.lock) through the same workflows — int8 LTX/Gemma via comfy-kitchen's sm80
+  kernels, weights streamed from RAM where 24 GB is short. Driven by a worker on the Spark.
+
+placement:
+  image:
+    engine: comfy
+    device: cuda:0
+    port: 8102
+    model: flux1-dev-fp8 (+Hyper-FLUX 8-step LoRA)
+    mem_gb: 17
+    notes: ComfyUI :8188 on GPU0; the Spark's files and workflow; fp8 weights dequantise per matmul on Ampere (same weights, slower); measured 1024² 8 steps warm 11.1 s (2026-09-19)
+  video:
+    engine: comfy
+    device: cuda:1
+    port: 8104
+    model: ltx2 (LTX-2.5 22B distilled int8-convrot — the Spark's file)
+    mem_gb: 24
+    notes: ComfyUI :8189 on GPU1; 21.5 GB transformer partly streamed from RAM; Gemma int8 on CPU as on the Spark; VIDEO_MODELS=ltx2 (the Spark serves no Wan)
+  llm:
+    engine: vllm
+    device: cuda:2
+    port: 8010
+    model: QuantTrio/Qwen3.6-35B-A3B-AWQ (also answers as nvidia/Qwen3.6-35B-A3B-NVFP4); LLM_WEIGHTS=nvfp4 = the Spark's file, untested here
+    mem_gb: 22
+    notes: >
+      GPU2 is shared by role (gpu2.sh). Default role "video" = a second LTX renderer, ComfyUI :8190 →
+      gen-video2 :8114, same files as GPU1, dialled by the Spark's worker rtx3090x3-gpu2; the docker
+      ads-llm stays stopped. Role "llm" = this vLLM, only for offload mode (the worker pools the Spark's
+      LLM first). Measured 809 tok/s aggregate (AWQ, 2026-09-19)
+  tts:
+    engine: kokoro
+    device: cpu
+    port: 8105
+    model: kokoro-82m (en) · piper (uk/ru fallback)
+    notes: brand voices (styletts2_multi, radtts, f5) live on the Spark — GEN_TTS_URL pools the Spark FIRST, local piper is the fallback
+
+worker:
+  concurrency: 5            # + VIDEO_GEN_CONCURRENCY=2; a second worker (rtx3090x3-gpu2) drives GPU2's renderer
+  claims: auto

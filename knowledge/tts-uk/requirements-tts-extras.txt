@@ -1,0 +1,44 @@
+# OPTIONAL heavy TTS extras — NOT installed by `make install`. normalize.py imports
+# these lazily and skips stress marking when they are absent, so installing them is
+# an operator choice: .venv/bin/pip install -r services/requirements-tts-extras.txt
+ukrainian-word-stress>=1.0   # uk stress marks (pulls stanza)
+ruaccent>=1.5                # ru stress marks (pulls torch-family deps)
+
+# uk neural verbalizer (verbalize.py) — contextual number/abbrev inflection
+# (skypro1111/m2m100-ukr-verbalization, the model patriotyk's Space uses).
+# Installed 2026-08-20; transformers already in the venv is reused. Assets:
+#   data/models/verbalizer/uk/model/     <- skypro1111/m2m100-ukr-verbalization-ct2
+#   data/models/verbalizer/uk/tokenizer/ <- skypro1111/m2m100-ukr-verbalization (tokenizer files)
+# (huggingface_hub.snapshot_download; ~1.9 GB). TTS_VERBALIZER=0 disables.
+ctranslate2>=4.0
+sentencepiece>=0.2
+
+# F5-TTS engine (TTS_ENGINE_RU/UK=f5) — install torch for this box FIRST
+# (aarch64 + CUDA 13 wheels live on the cu130 index, not on PyPI):
+#   .venv/bin/pip install torch torchaudio torchcodec --index-url https://download.pytorch.org/whl/cu130
+# then f5-tts WITHOUT its UI deps (gradio would pin fastapi in the shared venv
+# that runs every host service; wandb/datasets/matplotlib are unavoidable —
+# f5_tts.model imports its Trainer at package level):
+#   .venv/bin/pip install f5-tts --no-deps
+#   .venv/bin/pip install torchdiffeq x_transformers ema_pytorch vocos cached_path \
+#       transformers accelerate librosa pydub pypinyin rjieba hydra-core tomli \
+#       unidecode matplotlib wandb datasets
+# Checkpoints go into data/models/f5/<lang>/ (one *.safetensors + vocab.txt);
+# reference clips into data/models/f5/refs/<name>.wav + .txt transcript.
+
+# StyleTTS2-Ukrainian engine (TTS_ENGINE_UK=styletts2) — patriotyk's MIT inference
+# stack; torch/torchaudio/transformers/einops/librosa already in the venv are
+# reused, only these are added (installed 2026-08-18):
+munch==4.0.0
+einops-exts==0.0.4
+ipa-uk @ git+https://github.com/patriotyk/ipa-uk.git@3faf05ec50fd4880965b6c76f8e479a4f82117f5
+styletts2-inference @ git+https://github.com/patriotyk/styletts2-inference.git@d1dd6ffda4a580fea74fd7305676722aae883e52
+# (ukrainian-word-stress above is REQUIRED, not optional, for this engine — its
+# stress marks feed ipa_uk G2P; installed as 2.1.0, pulls stanza.)
+# Model files go into data/models/styletts2/uk/: config.yml + pytorch_model.bin +
+# style.pt from huggingface.co/patriotyk/styletts2_ukrainian_single (MIT).
+
+# OOV stress fallback (normalize.py): tiny LSTM accentor for words the
+# ukrainian-word-stress trie does not know (anglicisms, brand names). argmax
+# head — deterministic. Installed 2026-09-02.
+ukrainian-accentor @ git+https://github.com/egorsmkv/ukrainian-accentor@main
