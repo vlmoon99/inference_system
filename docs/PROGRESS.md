@@ -24,10 +24,14 @@ Rules for whoever works on it:
 
 ## Next action
 
-Step 0a: push advertisment_system `main` (3 unpushed commits) and branches `ai/0a8090de`, `ai/9668cb32`,
-`ai/c5034952` to github.com/vlmoon99/advertisment_system.
+Step 0c: port the knowledge from `advertisment_system` into `knowledge/` (TTS uk chain code + docs, ComfyUI
+workflows + weights.lock, host READMEs with measured numbers, adapters needed for v1 as a starting point).
 
 ## Log (newest last)
 
 * 2026-10-09: plan settled with the owner in a grilling session (PLATFORM_PLAN.md v1). Progress log created.
   Owner said "go", so steps 0→5 run straight through; only step 1's deletion waits for approval.
+* 2026-10-09 0a DONE: advertisment_system main (331775c) + ai/0a8090de, ai/9668cb32, ai/c5034952 pushed;
+  verified with `git fetch` (main == origin/main, the 3 branches exist on origin). The other 4 ai/* were already merged.
+* 2026-10-09 0b DONE: `advertisment_system/data/models` (7.7 GB, 119 files) moved to `weights/tts/` (gitignored).
+  Sources in `weights/weights.lock`, per-file hashes in `weights/tts.sha256` (not committed).

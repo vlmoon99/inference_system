@@ -1,0 +1,9 @@
+weights/*
+!weights/README.md
+!weights/weights.lock
+__pycache__/
+.venv/
+*.env
+!*.env.example
+node_modules/
+dist/

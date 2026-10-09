@@ -1,0 +1,11 @@
+# dir                     source                                                           verified  licence / note
+tts/radtts/uk             RAD-TTS++ uk checkpoint model_dap_84000_state.pt (speech-uk collection on HF)  no  NVIDIA RADTTS research terms — engine of record (mykyta, наголос)
+tts/styletts2/uk          hf:patriotyk/styletts2_ukrainian_single                          yes       MIT
+tts/styletts2/uk-multi    hf:patriotyk/styletts2_ukrainian_multispeaker_hifigan + voices/*.pt from HF Space patriotyk/styletts2-ukrainian  yes  MIT
+tts/verbalizer/uk         hf:skypro1111/m2m100-ukr-verbalization-ct2 (CTranslate2 int8)    yes       check model card
+tts/uktts                 github:robinhad/ukrainian-tts release (ESPnet; voices tetiana mykyta lada dmytro oleksa)  no  MIT code / GPL-flagged weights — sidecar only
+tts/kokoro                github:thewh1teagle/kokoro-onnx releases (kokoro-v1.0.onnx, voices-v1.0.bin)  yes  Apache-2.0
+tts/piper                 hf:rhasspy/piper-voices (uk_UA-ukrainian_tts-medium, ru_RU-ruslan-medium)  yes  MIT
+tts/f5/ru                 hf:TVI/f5-tts-ru-accent (model_last.safetensors + vocab.txt)     yes       base F5 is NC
+tts/f5/refs               piper-synthesized reference clips (were committed in the old repo)  yes     own
+tts/whisper/medium        CTranslate2 whisper-medium (faster-whisper layout, has HF .cache metadata)  no  MIT
