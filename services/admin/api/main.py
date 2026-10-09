@@ -253,7 +253,8 @@ async def revoke(token: str):
 async def usage(days: int = 30):
     return await asyncio.to_thread(q, """
         select date_trunc('day', s."startTime")::date as day,
-               coalesce(t.key_alias, case when s.api_key = '' then '(master)' else left(s.api_key, 10) end) as project,
+               coalesce(t.key_alias, nullif(s.metadata->>'user_api_key_alias', ''),        -- alias survives key deletion
+                        case when t.token is null and s.api_key <> '' then '(deleted key)' else '(master)' end) as project,
                coalesce(nullif(s.model_group, ''), s.model) as model, s.call_type,
                count(*) as requests, sum(s.prompt_tokens) as prompt_tokens,
                sum(s.completion_tokens) as completion_tokens,
