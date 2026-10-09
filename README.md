@@ -1,7 +1,7 @@
 # inference_system
 
 One local inference cloud for many projects: **LiteLLM** in front of self-hosted engines on tailnet
-machines. Tailnet-only for now (a public domain comes later). Design: `docs/PLATFORM_PLAN.md`;
+machines. Tailnet-only for now (a public domain comes later). Design: `docs/PLATFORM_PLAN.md`; scaling + cloud: `docs/SCALING_AND_CLOUD.md`;
 progress log: `docs/PROGRESS.md`.
 
 ## Using it from a project
