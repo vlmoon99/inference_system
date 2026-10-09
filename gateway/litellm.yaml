@@ -23,6 +23,14 @@ model_list:
       api_key: os.environ/IMAGE_API_KEY
       timeout: 600
 
+  - model_name: qwen-image-edit           # dgx-spark-2
+    model_info: {mode: image_generation}
+    litellm_params:
+      model: openai/qwen-image-edit
+      api_base: http://100.64.0.12:8102/v1
+      api_key: os.environ/IMAGE_API_KEY
+      timeout: 600
+
 router_settings:
   routing_strategy: least-busy
   num_retries: 1

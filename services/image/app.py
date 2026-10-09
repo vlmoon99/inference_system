@@ -306,6 +306,7 @@ async def _keep_warm() -> None:
                 await respond(ImageRequest(prompt="warm-up", size="256x256", seed=1, steps=1), None)
             except Exception as e:  # noqa: BLE001 — ComfyUI still booting: try again shortly
                 print(json.dumps({"event": "warm_failed", "error": f"{type(e).__name__}: {e}"[:200]}), flush=True)
+                _state["last_use"] = 0.0          # respond() stamped it; a failed warm-up must retry soon
                 await asyncio.sleep(20)
                 continue
         await asyncio.sleep(30)
