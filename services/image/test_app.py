@@ -47,3 +47,12 @@ def test_fit_contain_keeps_whole_photo():
     out = app.fit_contain(tall, 512, 512)
     assert out.size == (512, 512)
     assert out.getpixel((256, 256)) == (255, 0, 0)            # photo centred, not cropped away
+
+
+def test_api_key_guards_v1_routes(monkeypatch):
+    from fastapi.testclient import TestClient
+    monkeypatch.setattr(app, "API_KEY", "secret-1")
+    c = TestClient(app.app)
+    assert c.get("/v1/models").status_code == 401
+    assert c.get("/v1/models", headers={"authorization": "Bearer nope"}).status_code == 401
+    assert c.get("/v1/models", headers={"authorization": "Bearer secret-1"}).status_code == 200

@@ -18,7 +18,9 @@ these extra JSON fields untouched (checked 2026-10-09) but drops unknown reply f
 reply stays strictly OpenAI-shaped.
 
 ComfyUI is reached only over HTTP (/upload/image, /prompt, /history, /view): no shared disk.
-Env: COMFY_URL, MODEL_NAME, WORKFLOW, KEEP_WARM_S, BIND, PORT.
+When API_KEY is set every /v1 call needs `Authorization: Bearer $API_KEY` (the gateway sends it): an image
+service bound to a tailnet IP must not be a way around the gateway's project keys.
+Env: COMFY_URL, MODEL_NAME, WORKFLOW, KEEP_WARM_S, API_KEY, BIND, PORT.
 """
 
 import asyncio
@@ -33,8 +35,11 @@ import uuid
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
+import hmac
+
 import httpx
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import JSONResponse
 from PIL import Image, ImageFilter, ImageOps
 from pydantic import BaseModel
 
@@ -42,12 +47,22 @@ COMFY_URL = os.environ.get("COMFY_URL", "http://127.0.0.1:8188").rstrip("/")
 MODEL_NAME = os.environ.get("MODEL_NAME", "qwen-image-edit")
 WORKFLOW = Path(os.environ.get("WORKFLOW", str(Path(__file__).parent / "workflows" / "qwen_image_edit_2511_api.json")))
 KEEP_WARM_S = int(os.environ.get("KEEP_WARM_S", "900"))   # 0 = off
+API_KEY = os.environ.get("API_KEY", "")
 MAX_SIDE = 2048
 MAX_N = 4
 FETCH_LIMIT = 25 * 1024 * 1024
 
 app = FastAPI(title="inf-image")
 _state = {"loaded": False, "last_use": 0.0, "renders": 0, "errors": 0}
+
+
+@app.middleware("http")
+async def _auth(request: Request, call_next):
+    if API_KEY and request.url.path.startswith("/v1/"):
+        given = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
+        if not hmac.compare_digest(given, API_KEY):
+            return JSONResponse({"detail": "bad api key"}, status_code=401)
+    return await call_next(request)
 
 
 class ImageRequest(BaseModel):

@@ -75,6 +75,7 @@ services:
     restart: unless-stopped
     environment:
       COMFY_URL: http://127.0.0.1:8188
+      API_KEY: ${IMAGE_API_KEY}
       BIND: 127.0.0.1
       PORT: "8102"
     depends_on: [comfyui]
@@ -100,6 +101,7 @@ services:
     restart: unless-stopped
     environment:
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      IMAGE_API_KEY: ${IMAGE_API_KEY}
       DATABASE_URL: postgresql://litellm:${LITELLM_DB_PASSWORD}@127.0.0.1:5440/litellm
       DISABLE_ADMIN_UI: "True"
       STORE_MODEL_IN_DB: "False"

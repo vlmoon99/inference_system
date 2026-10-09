@@ -1,0 +1,54 @@
+# dgx-spark-2 (GB10, 122 GB unified): a second Qwen-Edit replica. The gateway on dgx-spark load-balances
+# `qwen-image-edit` across both boxes (gateway/litellm.yaml).
+#   git clone git@github.com:vlmoon99/inference_system.git ~/inference_system
+#   cd ~/inference_system/hosts/dgx-spark-2 && cp .env.example .env  (same AGENT_TOKEN + IMAGE_API_KEY as dgx-spark)
+#   docker compose up -d --build
+name: inf
+
+x-gpu: &gpu
+  deploy:
+    resources:
+      reservations:
+        devices: [{driver: nvidia, count: all, capabilities: [gpu]}]
+
+services:
+  comfyui:
+    build:
+      context: ../../services/comfyui
+      args: {BASE: "ads-comfyui:v0.33.3"}     # local image (built 2026-09 from the old install.sh), already has the packages
+    image: inf/comfyui:local
+    container_name: inf-comfyui
+    network_mode: host
+    ipc: host
+    <<: *gpu
+    restart: unless-stopped
+    volumes: ["${COMFY_DIR}:/comfy"]
+    command: bash -lc "cd /comfy && python main.py --listen 127.0.0.1 --port 8188 --disable-async-offload --disable-dynamic-vram --highvram"
+
+  image:
+    build: ../../services/image
+    image: inf/image:local
+    container_name: inf-image
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      COMFY_URL: http://127.0.0.1:8188
+      API_KEY: ${IMAGE_API_KEY}
+      BIND: ${TAILNET_IP}                       # the gateway on dgx-spark calls it over the tailnet
+      PORT: "8102"
+    depends_on: [comfyui]
+
+  node-agent:
+    build: ../../services/node-agent
+    image: inf/node-agent:local
+    container_name: inf-node-agent
+    network_mode: host
+    <<: *gpu
+    restart: unless-stopped
+    environment:
+      AGENT_TOKEN: ${AGENT_TOKEN}
+      HOST_NAME: dgx-spark-2
+      PROJECT: inf
+      BIND: ${TAILNET_IP}
+      PORT: "8090"
+    volumes: ["/var/run/docker.sock:/var/run/docker.sock"]
