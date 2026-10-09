@@ -17,19 +17,30 @@ Rules for whoever works on it:
 |---|---|---|
 | 0 | push old git, move TTS weights, port knowledge | done |
 | 1 | stop + clean old system (owner approves deletion list) | STOPPED (both Sparks); deletion waits for owner |
-| 2 | inference v1 on dgx-spark, `smoke.sh`, tag `inf-v1` | in progress |
-| 3 | dgx-spark-2 replica + node-agent, tag `inf-v1.1` | not started |
+| 2 | inference v1 on dgx-spark, `smoke.sh`, tag `inf-v1` | done: smoke 11/11 |
+| 3 | dgx-spark-2 replica + node-agent, tag `inf-v1.1` | in progress |
 | 4 | BoostContent backend, `smoke.sh`, tag `bc-v1` | not started |
 | 5 | BoostContent admin, tag `bc-admin-v1` | not started |
 
 ## Next action
 
-Step 2: build `hosts/dgx-spark/compose.yaml` (vLLM, qwen3-embed, ComfyUI, inf-image adapter, LiteLLM + its Postgres,
-SearXNG, node-agent, admin), bring it up, then write `smoke.sh`.
+Step 3: `hosts/dgx-spark-2/compose.yaml` (comfyui + image + node-agent, image service bound to 100.64.0.12),
+copy the repo there (git clone), `docker compose up`, add a second `qwen-image-edit` deployment to
+gateway/litellm.yaml, add the node to ADMIN_NODES, smoke again. Then tag `inf-v1.1`.
 
 ## Decisions made overnight (owner asleep 2026-10-09 night → review in the morning)
 
 * Owner asked for a non-stop loop overnight with no input. Deletion is the only thing held back.
+* **The admin password is NOT set**: the owner sets it on the first visit to http://100.64.0.1:8091.
+* Ports: gateway :8000, admin :8091, node-agent :8090, SearXNG :8888, all on the tailnet IP only (checked:
+  127.0.0.1 and the LAN IP refuse). :4000/:8899 left free for a coding LLM (`~/work` doesn't exist; nothing to keep).
+* vLLM `--gpu-memory-utilization 0.26` (0.20 fails; 0.35 starved ComfyUI), ComfyUI `--highvram`. Numbers in
+  hosts/dgx-spark/README.md.
+* ComfyUI got its own image (services/comfyui): the old `pd-comfyui` container had pip-upgraded packages in
+  its writable layer only; a fresh container from the base image crashed (comfy_kitchen 0.2.16 vs 0.2.31).
+* Public model ids: `qwen3.6-35b`, `qwen3-embedding-0.6b`, `qwen-image-edit` (short, provider-neutral).
+* LiteLLM key cache TTL 10 s, so a revoked key dies everywhere within ~10 s (2 workers each cache keys).
+* LiteLLM pinned to 1.104.2 by digest (`main-stable` moves).
 
 ## Deletion list, awaiting owner approval
 
@@ -74,3 +85,6 @@ Everything here is **stopped and disabled** overnight, but **not deleted**. Owne
   ads-dropcache.timer disabled; ads-comfyui(-vid) stopped, restart=no. Verified: no ads processes, `docker ps` empty on both.
   **boostcontent.io is offline from now on** (tunnel stopped). Tunnel token copied to boostcontent_backend/.env (600, gitignored);
   SearXNG settings ported to hosts/dgx-spark/searxng (secret moved to hosts/dgx-spark/.env).
+* 2026-10-09 2 DONE: dgx-spark stack up (9 containers). smoke.sh 11/11: chat + stream, embeddings 1024-d,
+  text→image and photo edit through pre-signed PUT/GET (19–20 s warm), SearXNG, node-agent (+401 without token),
+  usage rows per key, revocation → 401. Run on the Spark itself (no other tailnet machine was online).
