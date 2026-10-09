@@ -24,8 +24,9 @@ Rules for whoever works on it:
 
 ## Next action
 
-Step 4: boostcontent_backend. Migrations 0001–0004 drafted (core, storage/SigV4, api, engine); next: compose
-(db, gotrue, postgrest, garage, caddy :3100, cloudflared), pgTAP tests, bring up, smoke.sh.
+Step 4 (cont.): boostcontent_backend is UP locally (compose project `bc`, everything except cloudflared) and the
+full flow works. Remaining: pgTAP tests (db/tests), `smoke.sh`, README, then start cloudflared (public) and
+tag `bc-v1`. Then step 5: admin web (React+Vite+Tailwind JS) served by bc-caddy :3200 → /api = admin PostgREST.
 
 ## Decisions made overnight (owner asleep 2026-10-09 night → review in the morning)
 
@@ -45,6 +46,13 @@ Step 4: boostcontent_backend. Migrations 0001–0004 drafted (core, storage/SigV
 * inf-image requires `Authorization: Bearer $IMAGE_API_KEY` (the gateway sends it): spark-2's image service
   is on the tailnet and must not bypass project keys.
 * ComfyUI image takes `BASE` per box: dgx-spark `pd-comfyui:base`, dgx-spark-2 `ads-comfyui:v0.33.3`.
+* BoostContent routing: the existing CF tunnel already points boostcontent.io → localhost:3100, so **bc-caddy
+  listens on :3100** and splits by path (/auth/v1 GoTrue, /rest/v1 PostgREST, /bc-media Garage). No Cloudflare
+  dashboard change needed. Media URLs are https://boostcontent.io/bc-media/… (path-style S3).
+* BoostContent got its own gateway key (LiteLLM key alias `boostcontent`), like any other project.
+* Image format for posts: 1024×1280 (4:5, Instagram feed). Setting `image_size` in private.settings.
+* Engine concurrency: 4 LLM + 4 image jobs in flight (settings `llm_concurrency`, `image_concurrency`).
+* Garage CORS is not configured yet: needed only for a browser (Flutter web) uploading directly.
 
 ## Deletion list, awaiting owner approval
 
@@ -95,3 +103,8 @@ Everything here is **stopped and disabled** overnight, but **not deleted**. Owne
 * 2026-10-09 3 DONE: dgx-spark-2 runs inf-comfyui + inf-image (100.64.0.12:8102, key) + node-agent from
   ~/inference_system (git clone). Gateway has 2 `qwen-image-edit` deployments. smoke.sh 14/14 incl. 4 concurrent
   renders split across both boxes. Fixed: keep-warm stayed cold 15 min after a failed first try.
+* 2026-10-09 4 (part): boostcontent_backend up: db (pg17 + pg_net 0.20.5, pg_cron, pgvector), dbmate migrations
+  0001–0006, GoTrue anonymous, PostgREST ×2, Garage, Caddy. Verified: SigV4 in SQL = AWS test vector; signed
+  PUT/GET internal + public; tampered URL 403; guest → business → photo → generate 2 posts → profile (vision) →
+  ideas → uk captions → 6 Qwen-Edit images, quota 2/6 used, gen_trace rows. Fixed: pg_net worker watched the
+  wrong database (`pg_net.database_name`).
