@@ -12,5 +12,14 @@ dgx-spark's copy; LiteLLM (least-busy) spreads renders across both. Only ComfyUI
 The machine has 120 GB free for more models (Qwen-Image-2512 and LTX-2.5 weights are already in `~/ComfyUI`;
 see `knowledge/workflows`).
 
-## Measured
-(filled by step 3)
+## Measured (2026-10-09)
+
+| What | Number |
+|---|---|
+| Qwen-Edit 1024², warm | ~20 s (same as dgx-spark) |
+| first render after start | ~3–4 min (weights from disk) |
+| 4 concurrent requests through the gateway | split 2/2 across the Sparks (LiteLLM least-busy, **1 worker**) |
+| memory with Qwen-Edit warm | ~30 GB of 121, so plenty of room for 2512 / LTX later |
+
+Each box's ComfyUI renders one image at a time; requests queue inside it (512² renders measured
+19 → 39 → 58 s when three landed on one box).

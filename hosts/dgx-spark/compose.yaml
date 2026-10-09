@@ -106,7 +106,7 @@ services:
       DISABLE_ADMIN_UI: "True"
       STORE_MODEL_IN_DB: "False"
     volumes: ["../../gateway/litellm.yaml:/app/config.yaml:ro"]
-    command: ["--config", "/app/config.yaml", "--host", "${TAILNET_IP}", "--port", "8000", "--num_workers", "2"]
+    command: ["--config", "/app/config.yaml", "--host", "${TAILNET_IP}", "--port", "8000", "--num_workers", "1"]
     depends_on:
       litellm-db: {condition: service_healthy}
 

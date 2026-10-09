@@ -18,15 +18,14 @@ Rules for whoever works on it:
 | 0 | push old git, move TTS weights, port knowledge | done |
 | 1 | stop + clean old system (owner approves deletion list) | STOPPED (both Sparks); deletion waits for owner |
 | 2 | inference v1 on dgx-spark, `smoke.sh`, tag `inf-v1` | done: smoke 11/11 |
-| 3 | dgx-spark-2 replica + node-agent, tag `inf-v1.1` | in progress |
-| 4 | BoostContent backend, `smoke.sh`, tag `bc-v1` | not started |
+| 3 | dgx-spark-2 replica + node-agent, tag `inf-v1.1` | done: smoke 14/14 |
+| 4 | BoostContent backend, `smoke.sh`, tag `bc-v1` | in progress |
 | 5 | BoostContent admin, tag `bc-admin-v1` | not started |
 
 ## Next action
 
-Step 3: `hosts/dgx-spark-2/compose.yaml` (comfyui + image + node-agent, image service bound to 100.64.0.12),
-copy the repo there (git clone), `docker compose up`, add a second `qwen-image-edit` deployment to
-gateway/litellm.yaml, add the node to ADMIN_NODES, smoke again. Then tag `inf-v1.1`.
+Step 4: boostcontent_backend. Migrations 0001–0004 drafted (core, storage/SigV4, api, engine); next: compose
+(db, gotrue, postgrest, garage, caddy :3100, cloudflared), pgTAP tests, bring up, smoke.sh.
 
 ## Decisions made overnight (owner asleep 2026-10-09 night → review in the morning)
 
@@ -41,6 +40,11 @@ gateway/litellm.yaml, add the node to ADMIN_NODES, smoke again. Then tag `inf-v1
 * Public model ids: `qwen3.6-35b`, `qwen3-embedding-0.6b`, `qwen-image-edit` (short, provider-neutral).
 * LiteLLM key cache TTL 10 s, so a revoked key dies everywhere within ~10 s (2 workers each cache keys).
 * LiteLLM pinned to 1.104.2 by digest (`main-stable` moves).
+* LiteLLM runs **1 worker**: with 2, least-busy routing and the key cache are per-process (all renders went
+  to one box; revoked keys lived up to 60 s). One async worker is plenty for this load.
+* inf-image requires `Authorization: Bearer $IMAGE_API_KEY` (the gateway sends it): spark-2's image service
+  is on the tailnet and must not bypass project keys.
+* ComfyUI image takes `BASE` per box: dgx-spark `pd-comfyui:base`, dgx-spark-2 `ads-comfyui:v0.33.3`.
 
 ## Deletion list, awaiting owner approval
 
@@ -88,3 +92,6 @@ Everything here is **stopped and disabled** overnight, but **not deleted**. Owne
 * 2026-10-09 2 DONE: dgx-spark stack up (9 containers). smoke.sh 11/11: chat + stream, embeddings 1024-d,
   text→image and photo edit through pre-signed PUT/GET (19–20 s warm), SearXNG, node-agent (+401 without token),
   usage rows per key, revocation → 401. Run on the Spark itself (no other tailnet machine was online).
+* 2026-10-09 3 DONE: dgx-spark-2 runs inf-comfyui + inf-image (100.64.0.12:8102, key) + node-agent from
+  ~/inference_system (git clone). Gateway has 2 `qwen-image-edit` deployments. smoke.sh 14/14 incl. 4 concurrent
+  renders split across both boxes. Fixed: keep-warm stayed cold 15 min after a failed first try.

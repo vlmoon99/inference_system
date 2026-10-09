@@ -31,7 +31,7 @@ class H(BaseHTTPRequestHandler):
         if not os.path.exists(self.p()): self.send_response(404); self.end_headers(); return
         d = open(self.p(), 'rb').read(); self.send_response(200); self.send_header('content-length', str(len(d))); self.end_headers(); self.wfile.write(d)
     def log_message(self, *a): pass
-ThreadingHTTPServer(('127.0.0.1', port), H).serve_forever()
+ThreadingHTTPServer((os.environ['TAILNET_IP'], port), H).serve_forever()
 EOF
 BLOB_PID=$!
 cleanup() { kill $BLOB_PID 2>/dev/null; [ -n "${TOKEN:-}" ] && mk /key/delete "{\"keys\":[\"$TOKEN\"]}" >/dev/null; rm -rf "$TMP"; }
@@ -59,14 +59,30 @@ DIM=$(echo "$R" | body | jget 'len(d["data"][0]["embedding"])')
 
 echo "== image (pre-signed URL contract)"
 T0=$(date +%s)
-R=$(call /v1/images/generations "{\"model\":\"qwen-image-edit\",\"prompt\":\"a cup of coffee on a wooden table, morning light\",\"size\":\"768x1024\",\"output_put_url\":\"http://127.0.0.1:$BLOB_PORT/smoke/text.png?X-Amz-Signature=x\"}")
+R=$(call /v1/images/generations "{\"model\":\"qwen-image-edit\",\"prompt\":\"a cup of coffee on a wooden table, morning light\",\"size\":\"768x1024\",\"output_put_url\":\"http://${TAILNET_IP}:$BLOB_PORT/smoke/text.png?X-Amz-Signature=x\"}")
 URL=$(echo "$R" | body | jget 'd["data"][0]["url"]')
-[ "$(echo "$R" | code)" = 200 ] && [ "$URL" = "http://127.0.0.1:$BLOB_PORT/smoke/text.png" ] && [ "$(png_size "$TMP/smoke_text.png")" = 768x1024 ] \
+[ "$(echo "$R" | code)" = 200 ] && [ "$URL" = "http://${TAILNET_IP}:$BLOB_PORT/smoke/text.png" ] && [ "$(png_size "$TMP/smoke_text.png")" = 768x1024 ] \
   && ok "text→image uploaded to the PUT URL, 768x1024 ($(( $(date +%s) - T0 )) s)" || bad "text image: $(echo "$R" | body | head -c 300)"
 T0=$(date +%s)
-R=$(call /v1/images/generations "{\"model\":\"qwen-image-edit\",\"prompt\":\"Same cup, now on a snowy windowsill\",\"size\":\"1024x1024\",\"image_url\":\"http://127.0.0.1:$BLOB_PORT/smoke/text.png?sig=1\",\"output_put_url\":\"http://127.0.0.1:$BLOB_PORT/smoke/edit.png?sig=2\"}")
+R=$(call /v1/images/generations "{\"model\":\"qwen-image-edit\",\"prompt\":\"Same cup, now on a snowy windowsill\",\"size\":\"1024x1024\",\"image_url\":\"http://${TAILNET_IP}:$BLOB_PORT/smoke/text.png?sig=1\",\"output_put_url\":\"http://${TAILNET_IP}:$BLOB_PORT/smoke/edit.png?sig=2\"}")
 [ "$(echo "$R" | code)" = 200 ] && [ "$(png_size "$TMP/smoke_edit.png")" = 1024x1024 ] \
   && ok "photo edit via image_url → output_put_url ($(( $(date +%s) - T0 )) s)" || bad "edit: $(echo "$R" | body | head -c 300)"
+
+if [ "$(echo "${IMAGE_HEALTH:-}" | tr ',' '\n' | grep -c .)" -gt 1 ]; then
+  echo "== image load-balancing across $(echo "$IMAGE_HEALTH" | tr ',' ' ')"
+  before=$(for u in $(echo "$IMAGE_HEALTH" | tr ',' ' '); do curl -s "$u/health" | jget 'd["renders"]'; done | tr '\n' ' ')
+  pids=""
+  for i in 1 2 3 4; do
+    call /v1/images/generations "{\"model\":\"qwen-image-edit\",\"prompt\":\"a red apple, studio light\",\"size\":\"512x512\",\"output_put_url\":\"http://${TAILNET_IP}:$BLOB_PORT/smoke/lb$i.png\"}" > "$TMP/lb$i.out" &
+    pids="$pids $!"
+  done; wait $pids        # not a bare wait: the blob server is a background job too
+  after=$(for u in $(echo "$IMAGE_HEALTH" | tr ',' ' '); do curl -s "$u/health" | jget 'd["renders"]'; done | tr '\n' ' ')
+  served=$(python3 -c "import sys; b,a=sys.argv[1].split(),sys.argv[2].split(); print(sum(1 for x,y in zip(b,a) if int(y)>int(x)))" "$before" "$after")
+  okn=$(grep -l '"url"' "$TMP"/lb*.out | wc -l)
+  [ "$okn" = 4 ] && [ "$served" = "$(echo "$IMAGE_HEALTH" | tr ',' '\n' | grep -c .)" ] \
+    && ok "4 concurrent renders, every image node served some (renders before: $before → after: $after)" \
+    || bad "load-balancing: $okn/4 ok, nodes that served: $served (before $before, after $after)"
+fi
 
 echo "== search"
 curl -sf "http://${TAILNET_IP}:8888/search?q=kyiv+bakery&format=json" | jget 'len(d["results"])' | grep -qE '^[1-9]' \
