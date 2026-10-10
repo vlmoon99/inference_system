@@ -21,6 +21,12 @@ export default function Projects({ onUnauthorized }) {
     if (!confirm(`Revoke the key of ${r.project}? Its apps stop working immediately.`)) return
     try { await api(`/api/projects/${r.token}/revoke`, { method: 'POST' }); load() } catch (err) { fail(err) }
   }
+  const limits = async (r) => {
+    const v = prompt(`Limits of ${r.project}: requests per minute, parallel requests`, `${r.rpm_limit ?? 30}, ${r.max_parallel_requests ?? 2}`)
+    if (!v) return
+    const [rpm, par] = v.split(',').map((x) => parseInt(x, 10))
+    try { await api(`/api/projects/${r.token}/limits`, { method: 'POST', body: { rpm_limit: rpm, max_parallel_requests: par } }); load() } catch (err) { fail(err) }
+  }
   return (
     <div className="space-y-4">
       <Err error={error} />
@@ -38,14 +44,16 @@ export default function Projects({ onUnauthorized }) {
       </Card>
       <Card title="Projects">
         <table className="w-full text-sm">
-          <thead className="text-left text-xs text-zinc-500"><tr><th className="py-1">project</th><th>key</th><th>created</th><th /></tr></thead>
+          <thead className="text-left text-xs text-zinc-500"><tr><th className="py-1">project</th><th>key</th><th>created</th><th>per minute</th><th>parallel</th><th /></tr></thead>
           <tbody>
             {rows.map((r) => (
               <tr key={r.token} className="border-t border-zinc-800">
                 <td className="py-1.5">{r.project || '(no name)'}</td>
                 <td className="font-mono text-xs text-zinc-400">{r.key_hint}</td>
                 <td className="text-zinc-400">{r.created_at?.slice(0, 16).replace('T', ' ')}</td>
-                <td className="text-right"><Button kind="danger" onClick={() => revoke(r)}>revoke</Button></td>
+                <td>{r.rpm_limit ?? 'no limit'}</td>
+                <td>{r.max_parallel_requests ?? 'no limit'}</td>
+                <td className="space-x-2 text-right"><Button onClick={() => limits(r)}>limits</Button><Button kind="danger" onClick={() => revoke(r)}>revoke</Button></td>
               </tr>
             ))}
           </tbody>

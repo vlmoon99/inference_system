@@ -1,4 +1,4 @@
-# dgx-spark (GB10, 122 GB unified): the core stack (../core.yaml) + what only this box has.
+# dgx-spark (GB10, 122 GB unified): the core stack (../core.yaml). Nothing box-specific yet.
 # Started and supervised by deploy/node.sh (user unit inf-node.service).
 # Non-core models go here: a service for the engine, its nodes in gateway/Caddyfile, its name in gateway/litellm.yaml.
 name: inf
@@ -7,18 +7,3 @@ include:
   - path: ../core.yaml
     project_directory: .
     env_file: .env
-
-services:
-  searxng:
-    image: searxng/searxng:latest@sha256:a07a5cd2da2c63d66e559f9e4d3a3db106cfc6c32fb0ac70abe91cc28bcd7350
-    container_name: inf-searxng
-    restart: unless-stopped
-    environment:
-      SEARXNG_SECRET: ${SEARXNG_SECRET}
-    ports: ["${TAILNET_IP}:8888:8080"]
-    volumes:
-      - "./searxng:/etc/searxng"
-      - "searxng_cache:/var/cache/searxng"
-
-volumes:
-  searxng_cache:

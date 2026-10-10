@@ -33,7 +33,7 @@ from psycopg.rows import dict_row
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 DATA = Path(os.environ.get("ADMIN_DATA", "/data"))
 STATE_FILE = DATA / "admin.json"
@@ -224,7 +224,7 @@ def q(sql: str, *args) -> list[dict]:
 async def projects():
     return await asyncio.to_thread(q, """
         select token, key_alias as project, key_name as key_hint, created_at, expires, blocked, spend,
-               models, metadata
+               models, metadata, rpm_limit, max_parallel_requests
         from "LiteLLM_VerificationToken" order by created_at desc nulls last""")
 
 
@@ -232,14 +232,31 @@ class NewProject(BaseModel):
     name: str
 
 
+# The models cost no money, so the limits are about room: one runaway or leaked key must not fill every node.
+# A request over the limit gets HTTP 429. Raise them per project on the Projects page.
+DEFAULT_LIMITS = {"rpm_limit": 30, "max_parallel_requests": 2}
+
+
+class Limits(BaseModel):
+    rpm_limit: int = Field(ge=1, le=100000)
+    max_parallel_requests: int = Field(ge=1, le=1000)
+
+
 @app.post("/api/projects", dependencies=[Depends(require_login)])
 async def create_project(body: NewProject):
     name = body.name.strip()
     if not name or len(name) > 64:
         raise HTTPException(400, "project name must be 1..64 characters")
-    out = await litellm("POST", "/key/generate", json={"key_alias": name, "metadata": {"project": name}})
+    out = await litellm("POST", "/key/generate", json={"key_alias": name, "metadata": {"project": name}, **DEFAULT_LIMITS})
     print(json.dumps({"event": "project_key_created", "project": name}), flush=True)
     return {"project": name, "key": out["key"]}       # shown once; only the hash stays in the DB
+
+
+@app.post("/api/projects/{token}/limits", dependencies=[Depends(require_login)])
+async def set_limits(token: str, body: Limits):
+    await litellm("POST", "/key/update", json={"key": token, **body.model_dump()})
+    print(json.dumps({"event": "project_limits_set", "token": token[:12], **body.model_dump()}), flush=True)
+    return {"ok": True}
 
 
 @app.post("/api/projects/{token}/revoke", dependencies=[Depends(require_login)])

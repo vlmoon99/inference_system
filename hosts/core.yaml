@@ -187,6 +187,37 @@ services:
     depends_on:
       litellm-db: {condition: service_healthy}
 
+  searxng:                         # web search for the projects: each node answers on its own :8888
+    image: searxng/searxng:latest@sha256:a07a5cd2da2c63d66e559f9e4d3a3db106cfc6c32fb0ac70abe91cc28bcd7350
+    container_name: inf-searxng
+    restart: unless-stopped
+    environment:
+      SEARXNG_SECRET: ${SEARXNG_SECRET}
+    ports: ["${TAILNET_IP}:8888:8080"]
+    volumes:
+      - "../../services/searxng/settings.yml:/etc/searxng/settings.yml:ro"
+      - "searxng_cache:/var/cache/searxng"
+
+  # Off-site copy of the dumps, encrypted before they leave (rclone crypt). Off until OFFSITE_REMOTE is set.
+  # node.sh runs it on the master once a day and tries again every hour until it succeeds.
+  offsite:
+    profiles: [tools]
+    image: rclone/rclone:1.71
+    container_name: inf-offsite
+    network_mode: host
+    environment:
+      OFFSITE_REMOTE: ${OFFSITE_REMOTE:-}
+      OFFSITE_PASSPHRASE: ${OFFSITE_PASSPHRASE:-}
+    volumes: ["${BACKUP_DIR:-../../.data/backups}:/backups"]
+    entrypoint:
+      - sh
+      - -c
+      - |
+        export RCLONE_CONFIG_OFF_TYPE=crypt RCLONE_CONFIG_OFF_REMOTE="$$OFFSITE_REMOTE"
+        export RCLONE_CONFIG_OFF_PASSWORD="$$(rclone obscure "$$OFFSITE_PASSPHRASE")"
+        rclone sync /backups off:db --include '*.dump' && touch /backups/.offsite-ok
+
 volumes:
+  searxng_cache:
   admin_data:
   litellm_pg:
