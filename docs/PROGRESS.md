@@ -24,12 +24,13 @@ Rules for whoever works on it:
 
 ## Next action
 
-The migration is closed. Both systems are 2-node clusters with automatic takeover (dgx-spark = master of both
-databases, dgx-spark-2 = follower; README "The cluster" here, "More than one machine" in boostcontent_backend).
+The migration is closed. Both systems are 2-node clusters with automatic takeover (since the power-off of
+2026-10-10 14:44 UTC **dgx-spark-2 is the master of both databases** and dgx-spark the follower; README "The cluster" here, "More than one machine" in boostcontent_backend).
 Public: https://boostcontent.io and https://api.vramhouse.com/v1. What remains:
-1. **No power-off test was done: the owner skipped it (2026-10-10).** Every takeover was simulated by stopping
-   containers. The first real outage is the test; README "Never tried on a real power loss" lists what to check.
-2. Owner connects the Flutter client (dio): boostcontent_backend/docs/FLUTTER.md. Obliq (the owner's own
+1. **First real power-off: 2026-10-10 14:44 UTC (power key on dgx-spark), see the log.** The takeover worked.
+   Still open from it: the five checks in README "Never tried on a real power loss" were not all walked through,
+   and nobody failed back: BoostContent migrations and pgTAP now have to run on dgx-spark-2 (the master).
+2. Flutter side applies boostcontent_backend/docs/FLUTTER.md section 0 (the answers to its ten requests). Obliq (the owner's own
    development only): its key and base URL are in `~/.config/inference_system/obliq.env` on dgx-spark (mode 600).
 3. Off until the owner sets them in `.env` (both repos, README "Alerts and the off-site copy"): `ALERT_URL`,
    `OFFSITE_REMOTE` + `OFFSITE_PASSPHRASE` (probably the owner's Mac, later).
@@ -204,3 +205,24 @@ Kept as the record of what was removed.
   database of the master stopped → public chat back in 46 s from spark-2, a key created there works everywhere;
   return + fail-back (timeline 3, dgx-spark master again); smoke 14/14 here, 13/13 on spark-2 (no SearXNG there);
   BoostContent smoke 16/16. The LLM here was reloaded 4 times during the tests (~4 min each, chat served by spark-2).
+
+* 2026-10-10 14:41–14:47 UTC FIRST REAL OUTAGE of dgx-spark. 14:41:41 spark-2 logged "no node is the master"
+  (dgx-spark's host still answered pings, so by design no takeover); 14:44:47 dgx-spark logged "Power key
+  pressed short" and powered off; 14:46:08 spark-2 took over both databases (timeline 4); 14:46:29 dgx-spark
+  was back, saw the newer master, saved `.data/backups/before-reclone-20261010T144700.dump` and re-cloned as
+  a follower. Public API down about 5 min. Why dgx-spark stopped serving at 14:41 was NOT investigated.
+* 2026-10-10 app requests (the Flutter side's ten items; owner's decisions: guest only, one plan `free` with
+  limits from the console, no Pro / trial / payments, no automatic posts, options + learning instead, separate
+  post language incl. Russian). boostcontent_backend migrations 0010 + 0011: plan `standard` → `free`,
+  `me` has plan / onboarded_at / left, `complete_onboarding`, optional business name (the profile analysis
+  names it), `utc_offset`, fixed profile shape (`private.profile_shape`), `download_url` on every picture,
+  `choose_post` (the rest of the batch is passed and given back: a round costs 1 post), job kind `learn`
+  (prompt k1) → `profiles.learned`, ideas prompt i3 reads the memory + picks + passes, `delete_account`
+  (rows, sign-in, pictures on EVERY node via `s3_node_endpoints`). Prompts now p2 / i3 / l1 / k1.
+  Verified: pgTAP 79/79 on a throwaway database built from the migrations (`DB_CONTAINER=… scripts/test.sh`);
+  client/dart 37/37 against https://boostcontent.io (a real round of 3 options in 132 s, choice, refund
+  3 posts/9 pictures → 1/3, learned memory, attachment download, account deletion with 20 × 204 and nothing
+  left on the follower's storage). NOT verified: pgTAP on the live master, the admin console screens, anything
+  in Flutter itself. Applied on the master by hand: `docker compose --profile master run --rm --no-deps
+  migrate` (+ `configure`), then `notify pgrst, 'reload schema'`. Dump taken first:
+  `~/before-0010-20261010.dump` on dgx-spark-2.
