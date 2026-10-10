@@ -26,11 +26,10 @@ Rules for whoever works on it:
 
 The migration is closed. BoostContent now runs as a 2-node cluster (dgx-spark master, dgx-spark-2 follower,
 automatic takeover: boostcontent_backend/README.md "More than one machine"). What remains:
-1. **Public inference on vramhouse.com** (owner bought it 2026-10-10). Our side is done: bc-caddy serves host
-   `api.vramhouse.com` on the same `localhost:3100` (only `/v1/*`, upstreams from `INFERENCE_UPSTREAMS`, tried
-   in order), verified locally with the Host header (models, chat, streaming; /ui and /key/* → 404). Owner: add
-   the zone to Cloudflare + public hostname `api.vramhouse.com` → `http://localhost:3100` on the existing
-   tunnel. Then verify `https://api.vramhouse.com/v1/models` and update README/Obliq.
+1. Public inference is LIVE: `https://api.vramhouse.com/v1` (owner added the hostname → `localhost:3100` on
+   the existing tunnel, 2026-10-10). Verified from outside: 401 without a key; models, chat, streaming (SSE),
+   embeddings with a project key; `/`, `/ui/`, `/key/*`, `/openapi.json` → 404. Next: give Obliq its own project
+   key and point it here. The gateway still lives on dgx-spark only (INFERENCE_UPSTREAMS takes a second one).
 2. **Owner: real power-off test.** Power dgx-spark off (not just reboot): boostcontent.io must come back from
    spark-2 within ~2 min; power it on again: `deploy/node.sh status` shows it as follower.
 3. Owner connects the Flutter client (dio): boostcontent_backend/README.md.

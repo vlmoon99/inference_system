@@ -1,13 +1,14 @@
 # inference_system
 
 One local inference cloud for many projects: **LiteLLM** in front of self-hosted engines on tailnet
-machines. Tailnet-only for now (a public domain comes later). Design: `docs/PLATFORM_PLAN.md`; scaling + cloud: `docs/SCALING_AND_CLOUD.md`;
+machines. Public at `https://api.vramhouse.com/v1` (only `/v1`, through BoostContent's entry and tunnel); everything else is tailnet-only. Design: `docs/PLATFORM_PLAN.md`; scaling + cloud: `docs/SCALING_AND_CLOUD.md`;
 progress log: `docs/PROGRESS.md`.
 
 ## Using it from a project
 
 ```
-base_url = http://100.64.0.1:8000/v1        # OpenAI-compatible
+base_url = https://api.vramhouse.com/v1     # OpenAI-compatible, from anywhere (project key)
+base_url = http://100.64.0.1:8000/v1        # the same gateway inside the tailnet
 api_key  = <the project's key from the admin → Projects>
 ```
 
