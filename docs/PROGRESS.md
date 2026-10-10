@@ -24,13 +24,15 @@ Rules for whoever works on it:
 
 ## Next action
 
-The migration is closed: plan steps 0–5 are done, the old system is deleted, both admin passwords are set
-(owner, 2026-10-10). What remains is outside the plan:
-1. The owner connects the Flutter client: boostcontent_backend/README.md, "For the app (Flutter)".
-2. Open gaps: Garage objects are not backed up; the boot self-heal has not been through a second real reboot;
-   `not_found` errors answer HTTP 500 (documented in the README; the fix is a migration to a 404 code).
-3. Postponed by the plan: a public inference domain (Obliq is down until then), real sign-in providers, the
-   other projects, web hosting for the client.
+The migration is closed (steps 0–5 done, old system deleted, admin passwords set). Since then: proper HTTP error
+statuses, and dgx-spark-2 keeps a live copy of BoostContent (standby + dumps + media). What remains:
+1. **Owner: reboot test.** Reboot dgx-spark, wait ~5 min, run `~/Documents/dev/boostcontent_backend/smoke.sh`
+   and `ssh 100.64.0.12 '~/boostcontent_backend/replica/status.sh'`. Proves the boot self-heal (bc-db now
+   also publishes on the tailnet IP, so it is one more container that path has to cover).
+2. Owner is buying a domain for public inference (then: tunnel hostname → gateway :8000; Obliq comes back).
+3. Owner connects the Flutter client (dio): boostcontent_backend/README.md.
+4. Not done: failover to spark-2 is manual and unrehearsed; inference DBs (LiteLLM keys/usage) have dumps on
+   dgx-spark only; real sign-in providers; the other projects.
 
 ## Decisions made overnight (owner asleep 2026-10-09 night → review in the morning)
 
@@ -151,3 +153,13 @@ Kept as the record of what was removed.
 * 2026-10-10 README for the app rewritten from the running API (every shape and status was called, not assumed).
   Found while doing it: a default Supabase client asks for schema `public` and gets 406 (needs `schema: 'api'`);
   `not_found` comes back as HTTP 500; pgTAP is 38, not 36.
+
+* 2026-10-10 errors: migration 0009 gives client errors their HTTP status (not_found 404, quota_exceeded 402,
+  limit_* 409, daily_cap 429, not_authenticated 401). Verified over HTTP (404, 402) + pgTAP 38/38.
+* 2026-10-10 replica on dgx-spark-2 (`~/boostcontent_backend/replica`, compose `bc-replica`): hot standby via
+  slot `replica1`, daily pg_dump of the standby, hourly media copy with read-only Garage key `bc-replica`.
+  Verified: a row written on the primary was readable on the standby 2 s later; the standby refuses writes;
+  the dump lists with pg_restore; 12/12 objects copied; smoke 16/16 afterwards. bc-db was restarted twice
+  (seconds) for the new pg_hba + tailnet port. NOT verified: promotion/failover, behaviour across a reboot.
+  Owner decisions: no coding LLM on the Sparks (coding stays on the Mac); `~/.config/ai-worker` deleted on
+  request (`~/.config/ai-brain/backup.pass` left: it is a backup password, not asked about).
