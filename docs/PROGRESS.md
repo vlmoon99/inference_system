@@ -27,19 +27,32 @@ Rules for whoever works on it:
 The migration is closed. Both systems are 2-node clusters with automatic takeover (dgx-spark = master of both
 databases, dgx-spark-2 = follower; README "The cluster" here, "More than one machine" in boostcontent_backend).
 Public: https://boostcontent.io and https://api.vramhouse.com/v1. What remains:
-1. **Owner: real power-off test.** Power dgx-spark off (not just reboot): boostcontent.io and api.vramhouse.com
-   must answer again from spark-2 within ~2 min, and posts must still generate. Power it on: both
-   `deploy/node.sh status` show it as follower. Every takeover so far was simulated by stopping containers.
-2. Owner connects the Flutter client (dio): boostcontent_backend/docs/FLUTTER.md. Obliq: give it its own
-   project key (admin → Projects) and point it at https://api.vramhouse.com/v1.
-3. Non-core models: the mechanism is in place (README "Add a non-core model") but none is defined yet. Candidates
-   on spark-2: Qwen-Image-2512, LTX-2.5 (weights already in ~/ComfyUI).
-4. Not done: real sign-in providers; the other projects; SearXNG runs on dgx-spark only.
-5. STARTED 2026-10-10 (owner approved in the grilling session): deleting the leftovers (spark-2 volume
-   `bc-replica_db_data`, `~/boostcontent_backend/replica/`, Garage key `bc-replica`, `~/.config/ai-brain/backup.pass`,
-   30 bucket objects with no row in `private.media`, `.env.before-cluster`, `dart:stable`, `before-*.dump`), then:
-   SearXNG into core, per-key limits + the Obliq key, alert hook (`ALERT_URL`), off-site backup (`OFFSITE_REMOTE`).
-   The owner skipped the power-off test: the first real outage is the test.
+1. **No power-off test was done: the owner skipped it (2026-10-10).** Every takeover was simulated by stopping
+   containers. The first real outage is the test; README "Never tried on a real power loss" lists what to check.
+2. Owner connects the Flutter client (dio): boostcontent_backend/docs/FLUTTER.md. Obliq (the owner's own
+   development only): its key and base URL are in `~/.config/inference_system/obliq.env` on dgx-spark (mode 600).
+3. Off until the owner sets them in `.env` (both repos, README "Alerts and the off-site copy"): `ALERT_URL`,
+   `OFFSITE_REMOTE` + `OFFSITE_PASSPHRASE` (probably the owner's Mac, later).
+4. Non-core models: the mechanism is in place (README "Add a non-core model") but none is defined yet. Candidates
+   on spark-2: Qwen-Image-2512, LTX-2.5 (weights already in ~/ComfyUI). Owner: later.
+5. Not done: real sign-in providers; the other projects.
+
+Done 2026-10-10 in the hardening round (owner's decisions from the grilling session):
+* Leftovers deleted on both Sparks: the first replica attempt, Garage key `bc-replica`, `ai-brain/backup.pass`,
+  30 bucket objects with no row in `private.media` (13 left = 13 rows), `.env.before-cluster`, `dart:stable`,
+  `before-*.dump`, two 0-byte `.dump.tmp`.
+* SearXNG is a core service (`hosts/core.yaml`, settings in `services/searxng`, mounted read-only): 38 results on each node.
+* Per-key limits: new keys get 30 requests/min and 2 in parallel (admin → Projects → limits). `boostcontent` =
+  120/min, 12 parallel (its own engine runs up to 4 LLM + 4 image calls at once, so 8 would be the exact edge).
+  `obliq` = 30/2. Verified through api.vramhouse.com: 6 parallel chats → 2×200, 4×429.
+* `deploy/node.sh` in both repos: `alert` (POST `{"text"}` to `ALERT_URL`) on takeover, two masters, a node gone /
+  back, engine or gateway down 10 min (inference), public URL down 2 min (BoostContent), no dump for 26 h, no
+  off-site copy for 3 days. Verified with a local listener: follower databases stopped 100 s → "does not answer"
+  from both watchdogs after 60 s, "fine again" after the restart.
+* Off-site copy (compose service `offsite`, rclone crypt; BoostContent also sends the pictures): run by the
+  master's watchdog daily, hourly retry. Verified to a test folder: files encrypted, restored dumps byte-identical,
+  a failing remote is logged as FAILED. Not verified against a real remote (none exists yet).
+* After it: inference smoke 14/14 on both nodes, BoostContent smoke 16/16, both sites 200.
 
 ## Decisions made overnight (owner asleep 2026-10-09 night → review in the morning)
 
