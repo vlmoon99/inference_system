@@ -55,6 +55,23 @@ Done 2026-10-10 in the hardening round (owner's decisions from the grilling sess
   a failing remote is logged as FAILED. Not verified against a real remote (none exists yet).
 * After it: inference smoke 14/14 on both nodes, BoostContent smoke 16/16, both sites 200.
 
+## 2026-10-10 21:35 UTC: the Sparks are the server again; the Mac's data moved here; the Mac is off
+
+Owner's decision: the Sparks host everything, the Mac leaves. Done from the Mac over ssh:
+* The Mac's entry was stopped, its database dumped (755 KB: 14 accounts, 6 items, 43 posts) and its 82 pictures
+  listed. On dgx-spark-2: both `bc-node` watchdogs stopped, the Sparks' database dumped to
+  `.data/backups/sparks-before-mac-data.dump`, `boostcontent` dropped, created and restored from the Mac's dump
+  (clean; the two cron jobs came with it), `configure` run so the settings hold the Sparks' own addresses and
+  keys, services and watchdogs started. The follower streamed the new database (lag 2 ms). Pictures copied with
+  rclone to the master's Garage (0 missing; the follower's `bc-sync` copies them on).
+* DNS: `boostcontent.io` and `api.vramhouse.com` point at the Sparks' tunnel `test_ads_client` again. The Mac's
+  tunnel `bc-mac` has no connections; the Mac's containers and models are stopped.
+* Checks: `./smoke.sh` on dgx-spark-2 16/16 (a post with 3 pictures in 60 s), the same journey through
+  https://boostcontent.io passes, `api.vramhouse.com/v1/models` answers 401 without a key (the gateway).
+* Side effect: the owner-console password state came with the Mac's database (it was never set there).
+  Set it on the first visit to the console.
+* How to do it again, and how the Mac takes over on the next power cut: `boostcontent_backend/deploy/mac/RUNBOOK.md`.
+
 ## 2026-10-10 21:00 UTC: both Sparks back after the second power cut, node0 repaired by hand (from the Mac, over ssh)
 
 State found: dgx-spark-2 master of both databases (timeline 4) with no follower; on dgx-spark `bc-db`,

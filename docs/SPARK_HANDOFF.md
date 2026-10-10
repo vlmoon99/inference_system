@@ -1,5 +1,9 @@
 # Handoff to the Sparks (written on the owner's Mac, 2026-10-10)
 
+> **Superseded on 2026-10-10 21:35 UTC.** The Sparks are the server again: the Mac's data was moved to them and
+> the public names point at the Sparks' tunnel. This file describes the hours when the Mac was the server; the
+> current state is in `docs/PROGRESS.md` and `boostcontent_backend/deploy/mac/RUNBOOK.md`.
+
 For whoever works on dgx-spark (`100.64.0.1`) and dgx-spark-2 (`100.64.0.12`) next, human or Claude.
 Read this after `docs/PROGRESS.md`. Everything below was done from the Mac (`100.64.0.8`, macs-macbook-pro)
 while the Sparks were off, and nothing on the Sparks was changed.
