@@ -16,7 +16,7 @@ Rules for whoever works on it:
 | Step | What | Status |
 |---|---|---|
 | 0 | push old git, move TTS weights, port knowledge | done |
-| 1 | stop + clean old system (owner approves deletion list) | STOPPED (both Sparks); deletion waits for owner |
+| 1 | stop + clean old system (owner approves deletion list) | done: deleted 2026-10-10 on both Sparks |
 | 2 | inference v1 on dgx-spark, `smoke.sh`, tag `inf-v1` | done: smoke 11/11 |
 | 3 | dgx-spark-2 replica + node-agent, tag `inf-v1.1` | done: smoke 14/14 |
 | 4 | BoostContent backend, `smoke.sh`, tag `bc-v1` | done: smoke 16/16 local + via Cloudflare, pgTAP 38 |
@@ -24,10 +24,13 @@ Rules for whoever works on it:
 
 ## Next action
 
-Plan steps 0–5 are done, plus overnight extras (backups, CORS, boot units, scaling doc). **Waiting on the owner:**
-1. Approve the deletion list below (then: delete, and the owner runs `sudo rm -rf ~/Documents/dev/product_dream`).
-2. Set both admin passwords on first visit: http://100.64.0.1:8091 (inference) and http://100.64.0.1:3200 (BoostContent).
-3. Bring the Flutter client: the API is in boostcontent_backend/README.md.
+The migration is closed: plan steps 0–5 are done, the old system is deleted, both admin passwords are set
+(owner, 2026-10-10). What remains is outside the plan:
+1. The owner connects the Flutter client: boostcontent_backend/README.md, "For the app (Flutter)".
+2. Open gaps: Garage objects are not backed up; the boot self-heal has not been through a second real reboot;
+   `not_found` errors answer HTTP 500 (documented in the README; the fix is a migration to a 404 code).
+3. Postponed by the plan: a public inference domain (Obliq is down until then), real sign-in providers, the
+   other projects, web hosting for the client.
 
 ## Decisions made overnight (owner asleep 2026-10-09 night → review in the morning)
 
@@ -66,9 +69,9 @@ Plan steps 0–5 are done, plus overnight extras (backups, CORS, boot units, sca
 * Admin passwords: both consoles were tested over HTTP with a temporary password, then reset to first-visit.
   BoostContent admin tokens now die when the password is reset (found during that test).
 
-## Deletion list, awaiting owner approval
+## Deletion list: approved by the owner and DELETED 2026-10-10
 
-Everything here is **stopped and disabled** overnight, but **not deleted**. Owner: reply "approve deletion" (or strike items).
+Kept as the record of what was removed.
 
 **dgx-spark (this box)**
 | Item | Size | Note |
@@ -141,3 +144,10 @@ Everything here is **stopped and disabled** overnight, but **not deleted**. Owne
   Re-checked first: advertisment_system main == origin/main, the 3 unmerged ai/* branches are on origin, the other 4
   have nothing ahead of main; tunnel token in boostcontent_backend/.env is identical to ~/.config/ads/tunnel.env;
   each listed volume belongs only to a listed container. Deleting now on both Sparks.
+* 2026-10-10 09:20 UTC 1b DONE: everything on the list is gone from both Sparks (plus the drop-in dir
+  `gen-video.service.d` on spark-2, part of a listed unit). Verified: `docker ps -a` shows only inf-*/bc-*, the
+  never-delete images are all present, boostcontent.io / gateway / SearXNG answer 200. Disk: 332 G used.
+  Left alone, not on the list: `~/.ai-worker/work/*` (7 stale worktrees of the deleted repo).
+* 2026-10-10 README for the app rewritten from the running API (every shape and status was called, not assumed).
+  Found while doing it: a default Supabase client asks for schema `public` and gets 406 (needs `schema: 'api'`);
+  `not_found` comes back as HTTP 500; pgTAP is 38, not 36.
