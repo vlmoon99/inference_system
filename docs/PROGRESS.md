@@ -35,9 +35,11 @@ Public: https://boostcontent.io and https://api.vramhouse.com/v1. What remains:
 3. Non-core models: the mechanism is in place (README "Add a non-core model") but none is defined yet. Candidates
    on spark-2: Qwen-Image-2512, LTX-2.5 (weights already in ~/ComfyUI).
 4. Not done: real sign-in providers; the other projects; SearXNG runs on dgx-spark only.
-5. Leftovers to delete when the owner says so: spark-2 volume `bc-replica_db_data` and
-   `~/boostcontent_backend/replica/.data`, Garage key `bc-replica`, `~/.config/ai-brain/backup.pass`, orphan test
-   pictures in the bucket, `hosts/dgx-spark-2/.env.before-cluster`, the `dart:stable` image on dgx-spark.
+5. STARTED 2026-10-10 (owner approved in the grilling session): deleting the leftovers (spark-2 volume
+   `bc-replica_db_data`, `~/boostcontent_backend/replica/`, Garage key `bc-replica`, `~/.config/ai-brain/backup.pass`,
+   30 bucket objects with no row in `private.media`, `.env.before-cluster`, `dart:stable`, `before-*.dump`), then:
+   SearXNG into core, per-key limits + the Obliq key, alert hook (`ALERT_URL`), off-site backup (`OFFSITE_REMOTE`).
+   The owner skipped the power-off test: the first real outage is the test.
 
 ## Decisions made overnight (owner asleep 2026-10-09 night → review in the morning)
 
