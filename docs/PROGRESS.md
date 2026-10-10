@@ -137,3 +137,7 @@ Everything here is **stopped and disabled** overnight, but **not deleted**. Owne
   now recreate any service whose configured ports aren't published. Verified after the fix: inference smoke 14/14,
   BoostContent smoke 16/16, https://boostcontent.io 200. The self-heal branch ran as a no-op on the healthy
   system; it has NOT been exercised by another real reboot. dgx-spark-2 needed nothing (host-network services).
+* 2026-10-10 09:15 UTC 1b STARTED: owner approved the deletion list ("approve it", and removed product_dream himself).
+  Re-checked first: advertisment_system main == origin/main, the 3 unmerged ai/* branches are on origin, the other 4
+  have nothing ahead of main; tunnel token in boostcontent_backend/.env is identical to ~/.config/ads/tunnel.env;
+  each listed volume belongs only to a listed container. Deleting now on both Sparks.
