@@ -13,12 +13,14 @@ Runs inside product_dream-svc-embed's image (NGC torch for sm_121 + transformers
 see inference/hosts/dgx-spark/embed-qwen3.sh. No `ads` imports (adapters never do).
 """
 
+import hmac
 import os
 import threading
 
 import torch
 import torch.nn.functional as F
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 # Its own variable: the base image bakes EMBED_MODEL_ID=BAAI/bge-m3 in, which must not leak here.
@@ -29,7 +31,19 @@ DEVICE = os.environ.get("DEVICE", "cuda")
 if DEVICE.startswith("cuda") and not torch.cuda.is_available():
     DEVICE = "cpu"
 
+API_KEY = os.environ.get("API_KEY", "")   # set → /v1 needs `Authorization: Bearer $API_KEY` (the gateway sends it)
+
 app = FastAPI(title="embed-qwen3")
+
+
+@app.middleware("http")
+async def _auth(request: Request, call_next):
+    if API_KEY and request.url.path.startswith("/v1/"):
+        given = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
+        if not hmac.compare_digest(given, API_KEY):
+            return JSONResponse({"error": {"message": "invalid api key", "type": "auth"}}, status_code=401)
+    return await call_next(request)
+
 _lock = threading.Lock()
 _m: dict | None = None
 

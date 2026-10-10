@@ -1,0 +1,12 @@
+# ~/.config/systemd/user/inf-node.service  (installed by deploy/install-unit.sh; linger keeps it at boot)
+[Unit]
+Description=inference_system node watchdog: the whole stack + the gateway database's master/follower role
+After=default.target
+
+[Service]
+ExecStart=%h/Documents/dev/inference_system/deploy/node.sh run
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

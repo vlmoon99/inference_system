@@ -1,39 +1,43 @@
 # LiteLLM Proxy: the one door every project uses. Model names here are the public API ids.
-# Add a machine = add another deployment under the same model_name; LiteLLM load-balances.
+# This file is the same on every node. Each model points at the local balancer (gateway/Caddyfile), which
+# spreads it over the nodes that serve it:
+#   core models      run on every node; adding a node to NODES is all it takes
+#   non-core models  run on some nodes; add them at the bottom, with their balancer block in the Caddyfile
 model_list:
+  # ---- core
   - model_name: qwen3.6-35b
     model_info: {mode: chat}
     litellm_params:
       model: hosted_vllm/nvidia/Qwen3.6-35B-A3B-NVFP4
-      api_base: http://127.0.0.1:8010/v1
+      api_base: http://127.0.0.1:18010/v1
+      api_key: os.environ/ENGINE_KEY
       timeout: 600
 
   - model_name: qwen3-embedding-0.6b
     model_info: {mode: embedding}
     litellm_params:
       model: openai/Qwen/Qwen3-Embedding-0.6B
-      api_base: http://127.0.0.1:8013/v1
-      api_key: none
+      api_base: http://127.0.0.1:18013/v1
+      api_key: os.environ/ENGINE_KEY
 
-  - model_name: qwen-image-edit           # dgx-spark
+  - model_name: qwen-image-edit
     model_info: {mode: image_generation}
     litellm_params:
       model: openai/qwen-image-edit
-      api_base: http://127.0.0.1:8102/v1
+      api_base: http://127.0.0.1:18102/v1
       api_key: os.environ/IMAGE_API_KEY
       timeout: 600
 
-  - model_name: qwen-image-edit           # dgx-spark-2
-    model_info: {mode: image_generation}
-    litellm_params:
-      model: openai/qwen-image-edit
-      api_base: http://100.64.0.12:8102/v1
-      api_key: os.environ/IMAGE_API_KEY
-      timeout: 600
+  # ---- non-core (example: a model only dgx-spark-2 serves, balancer block :18200 in the Caddyfile)
+  # - model_name: some-video-model
+  #   litellm_params:
+  #     model: openai/some-video-model
+  #     api_base: http://127.0.0.1:18200/v1
+  #     api_key: os.environ/ENGINE_KEY
+  #     timeout: 1800
 
 router_settings:
-  routing_strategy: least-busy
-  num_retries: 1
+  num_retries: 2                   # a request cut off by a dying node is sent again; the balancer picks a live one
   timeout: 600
 
 litellm_settings:

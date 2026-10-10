@@ -1,0 +1,47 @@
+# The balancer in front of the engines: one local address per model, spread over every node that serves it.
+# A node is asked /health every 5 s and dropped while it does not answer, so a dead or still-loading node is
+# skipped at once (LiteLLM alone waits its full request timeout on a dead host: measured, >100 s).
+#
+# CORE models run on every node: their node list is built from NODES (hosts/core.yaml), nothing to edit here.
+# NON-CORE models run on some nodes: add a block with a free 127.0.0.1 port and exactly the nodes that have
+# the engine, then point a model at that port in litellm.yaml. Every node's gateway can then serve it.
+{
+	admin off
+	auto_https off
+	log {
+		level ERROR   # a node that is down fails its health check every 5 s: not news
+	}
+}
+
+(engine) {
+	bind 127.0.0.1
+	reverse_proxy {args[:]} {
+		lb_policy least_conn
+		lb_try_duration 8s
+		lb_try_interval 250ms
+		health_uri /health
+		health_interval 5s
+		health_timeout 3s
+		fail_duration 20s
+		flush_interval -1
+		transport http {
+			dial_timeout 2s
+		}
+	}
+}
+
+# ---- core (every node)
+http://:18010 {
+	import engine {$CORE_LLM}
+}
+http://:18013 {
+	import engine {$CORE_EMBED}
+}
+http://:18102 {
+	import engine {$CORE_IMAGE}
+}
+
+# ---- non-core (only the listed nodes), e.g. a video model that lives on dgx-spark-2:
+# http://:18200 {
+# 	import engine 100.64.0.12:8200
+# }

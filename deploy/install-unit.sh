@@ -1,11 +1,9 @@
 #!/bin/bash
-# Install + enable the boot unit for this machine's host dir:  deploy/install-unit.sh dgx-spark
+# Install + start the node watchdog as a user unit (the host dir is found by its .env):  deploy/install-unit.sh
 set -euo pipefail
-host=${1:?host dir}
 here=$(cd "$(dirname "$0")" && pwd)
 mkdir -p ~/.config/systemd/user
-sed "s#%h/Documents/dev/inference_system#$(dirname "$here")#; s#HOSTDIR#$host#; s#(hosts/%I)#(hosts/$host)#" \
-  "$here/inf-stack.service" > ~/.config/systemd/user/inf-stack.service
+sed "s#%h/Documents/dev/inference_system#$(dirname "$here")#" "$here/inf-node.service" > ~/.config/systemd/user/inf-node.service
 systemctl --user daemon-reload
-systemctl --user enable inf-stack.service
-echo "inf-stack.service enabled for hosts/$host"
+systemctl --user enable --now inf-node.service
+echo "inf-node.service enabled: journalctl --user -u inf-node -f"
