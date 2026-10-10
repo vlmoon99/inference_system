@@ -40,7 +40,7 @@ from pydantic import BaseModel
 API_KEY = os.environ.get("API_KEY", "")
 LLM_URL = os.environ.get("LLM_URL", "http://127.0.0.1:8001").rstrip("/")
 LLM_KEY = os.environ.get("LLM_KEY", "")
-LLM_MODEL = os.environ.get("LLM_MODEL", "qwen3.5-4b")                      # the id MTPLX serves (--model-id)
+LLM_MODEL = os.environ.get("LLM_MODEL", "llm")                             # the id MTPLX serves (--model-id)
 EMBED_MODEL = os.environ.get("EMBED_MODEL", "qwen3-embedding-0.6b")
 LLM_FREQUENCY_PENALTY = float(os.environ.get("LLM_FREQUENCY_PENALTY", "0.6"))
 LLM_PRESENCE_PENALTY = float(os.environ.get("LLM_PRESENCE_PENALTY", "0.3"))

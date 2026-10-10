@@ -47,4 +47,15 @@ pictures with mflux in its own process (one render at a time). The picture contr
 | The same through a Cloudflare quick tunnel | 16/16, ready in 90 s |
 | Memory | 64% free with everything loaded and Docker running |
 
+### With the 35B pack (`LLM_PACK=Youssofal/Qwen3.6-35B-A3B-MTPLX-Optimized-Speed`, `LLM_VISION=1`)
+
+The same model family as the Sparks, 21 GB on disk, 19.5 GB of weights in memory. It reads photos, and its
+Ukrainian is clean in a direct test. This is what the owner's Mac runs.
+
+| What | Result |
+|---|---|
+| Photo + 159 tokens of JSON (description, colors, captions in English and Ukrainian) | 8.3 s |
+| BoostContent `smoke.sh` through the quick tunnel | 16/16, ready in 95 s |
+| Memory with the 35B, klein and Docker loaded | 35% free |
+
 Not measured: three options in one round, several users at once, a long run (heat), the LLM under a render.

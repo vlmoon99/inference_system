@@ -10,7 +10,9 @@ set -a; . ./.env; set +a
 MODELS_DIR=${MODELS_DIR:-$HOME/.cache/inf-mac/models}
 LOGS=${LOGS:-$HOME/.cache/inf-mac/logs}; mkdir -p "$LOGS"
 LLM_PORT=${LLM_PORT:-8001}; PORT=${PORT:-8000}
-llm_up() { curl -sf -m 3 "http://127.0.0.1:$LLM_PORT/v1/models" 2>/dev/null | grep -q qwen3.5-4b; }
+# The LLM pack: a folder or a Hugging Face id. Default: the small pack fetch.sh downloads.
+LLM_PACK=${LLM_PACK:-$MODELS_DIR/Qwen3.5-4B-MTPLX-Optimized-Speed}
+llm_up() { curl -sf -m 3 "http://127.0.0.1:$LLM_PORT/v1/models" 2>/dev/null | grep -q '"id":"llm"'; }
 gw_up()  { curl -sf -m 3 "http://127.0.0.1:$PORT/v1/models" -H "authorization: Bearer $API_KEY" >/dev/null 2>&1; }
 
 case "${1:-status}" in
@@ -18,15 +20,15 @@ case "${1:-status}" in
     if ! llm_up; then
       venv=$(ls -d /opt/homebrew/var/mtplx/venv-* 2>/dev/null | sort -V | tail -1)
       [ -n "$venv" ] && "$venv/bin/python3" -c "import llguidance" 2>/dev/null || "$venv/bin/python3" -m pip install -q llguidance
-      nohup mtplx serve --model "$MODELS_DIR/Qwen3.5-4B-MTPLX-Optimized-Speed" --model-id qwen3.5-4b \
+      nohup mtplx serve --model "$LLM_PACK" --model-id llm \
         --embedding-model "$MODELS_DIR/Qwen3-Embedding-0.6B-4bit-DWQ=qwen3-embedding-0.6b" \
         --host 127.0.0.1 --port "$LLM_PORT" --no-auth --reasoning off --yes > "$LOGS/mtplx.log" 2>&1 &
       echo $! > "$LOGS/mtplx.pid"
-      for i in $(seq 120); do llm_up && break; sleep 2; done
+      for i in $(seq 300); do llm_up && break; sleep 2; done
       llm_up && echo "llm up (:$LLM_PORT)" || { echo "llm did NOT start: $LOGS/mtplx.log"; exit 1; }
     fi
     if ! gw_up; then
-      LLM_URL="http://127.0.0.1:$LLM_PORT" IMAGE_MODEL_PATH="${IMAGE_MODEL_PATH:-$MODELS_DIR/flux2-klein-4b-mflux-q4}" \
+      LLM_URL="http://127.0.0.1:$LLM_PORT" LLM_MODEL=llm IMAGE_MODEL_PATH="${IMAGE_MODEL_PATH:-$MODELS_DIR/flux2-klein-4b-mflux-q4}" \
         nohup uv run python gateway.py > "$LOGS/gateway.log" 2>&1 &
       echo $! > "$LOGS/gateway.pid"
       for i in $(seq 60); do gw_up && break; sleep 1; done
