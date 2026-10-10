@@ -26,9 +26,11 @@ Rules for whoever works on it:
 
 The migration is closed. BoostContent now runs as a 2-node cluster (dgx-spark master, dgx-spark-2 follower,
 automatic takeover: boostcontent_backend/README.md "More than one machine"). What remains:
-1. **Public inference on vramhouse.com** (owner bought it 2026-10-10): owner adds the zone to Cloudflare and a
-   public hostname `api.vramhouse.com` → `http://100.64.0.1:8000` (path `^/v1/`) on the existing tunnel; then
-   verify `https://api.vramhouse.com/v1/models` with a project key and update README/Obliq.
+1. **Public inference on vramhouse.com** (owner bought it 2026-10-10). Our side is done: bc-caddy serves host
+   `api.vramhouse.com` on the same `localhost:3100` (only `/v1/*`, upstreams from `INFERENCE_UPSTREAMS`, tried
+   in order), verified locally with the Host header (models, chat, streaming; /ui and /key/* → 404). Owner: add
+   the zone to Cloudflare + public hostname `api.vramhouse.com` → `http://localhost:3100` on the existing
+   tunnel. Then verify `https://api.vramhouse.com/v1/models` and update README/Obliq.
 2. **Owner: real power-off test.** Power dgx-spark off (not just reboot): boostcontent.io must come back from
    spark-2 within ~2 min; power it on again: `deploy/node.sh status` shows it as follower.
 3. Owner connects the Flutter client (dio): boostcontent_backend/README.md.
