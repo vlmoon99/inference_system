@@ -29,8 +29,11 @@ pictures with mflux in its own process (one render at a time). The picture contr
   from the product photo. Set `LLM_VISION=1` only with a model that takes images.
 * **JSON mode** needs `llguidance` inside MTPLX's own venv, or MTPLX refuses `response_format`. `run.sh start`
   installs it.
-* **Repetition penalties are added** (`frequency_penalty` 0.6, `presence_penalty` 0.3) when the caller sends
-  none: without them the first Ukrainian caption looped on one word.
+* **No repetition penalties by default.** `LLM_FREQUENCY_PENALTY` / `LLM_PRESENCE_PENALTY` exist for the 4B pack,
+  which loops on one word in Ukrainian without them, but they break lists of JSON objects (the 35B pack left
+  two of three posts empty and wrote the picture prompt as `1`), so leave them at 0 with the 35B pack.
+* **MTPLX's memory is capped** in `run.sh` (session bank 2 GB, context 32k): uncapped it answered HTTP 507
+  "insufficient memory" once while the picture model, Docker and other apps were loaded.
 * **Ukrainian and Russian are weak.** English captions read well; translations come out with invented or
   misspelled words ("Вашня кавовиця"). The 8-bit pack (`…-Optimized-Quality`, 4.6 GB) is untested here.
 * No streaming, no `/v1/images/edits`, no per-project keys, limits or usage log, no retries, no search.
@@ -58,4 +61,6 @@ Ukrainian is clean in a direct test. This is what the owner's Mac runs.
 | BoostContent `smoke.sh` through the quick tunnel | 16/16, ready in 95 s |
 | Memory with the 35B, klein and Docker loaded | 35% free |
 
-Not measured: three options in one round, several users at once, a long run (heat), the LLM under a render.
+| A round of three options for a real shop (3 product photos, one picture per option), through boostcontent.io | profile 19–23 s, all three ready in 192 s, every job on the first try |
+
+Not measured: three pictures per option, several users at once, a long run (heat), the LLM under a render.

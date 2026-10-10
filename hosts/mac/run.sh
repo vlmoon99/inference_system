@@ -20,7 +20,11 @@ case "${1:-status}" in
     if ! llm_up; then
       venv=$(ls -d /opt/homebrew/var/mtplx/venv-* 2>/dev/null | sort -V | tail -1)
       [ -n "$venv" ] && "$venv/bin/python3" -c "import llguidance" 2>/dev/null || "$venv/bin/python3" -m pip install -q llguidance
-      nohup mtplx serve --model "$LLM_PACK" --model-id llm \
+      # MTPLX keeps finished conversations in memory to resume them (up to 25 GB on a 64 GB Mac). Projects here
+      # send one-off requests, so that memory is better left to the picture model and Docker: without the cap
+      # MTPLX refused a request with "insufficient memory" (HTTP 507) on 2026-10-10.
+      MTPLX_SESSION_BANK_MAX_BYTES=${MTPLX_SESSION_BANK_MAX_BYTES:-2147483648} \
+      nohup mtplx serve --model "$LLM_PACK" --model-id llm --context-window "${LLM_CONTEXT:-32768}" \
         --embedding-model "$MODELS_DIR/Qwen3-Embedding-0.6B-4bit-DWQ=qwen3-embedding-0.6b" \
         --host 127.0.0.1 --port "$LLM_PORT" --no-auth --reasoning off --yes > "$LOGS/mtplx.log" 2>&1 &
       echo $! > "$LOGS/mtplx.pid"

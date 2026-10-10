@@ -42,8 +42,8 @@ LLM_URL = os.environ.get("LLM_URL", "http://127.0.0.1:8001").rstrip("/")
 LLM_KEY = os.environ.get("LLM_KEY", "")
 LLM_MODEL = os.environ.get("LLM_MODEL", "llm")                             # the id MTPLX serves (--model-id)
 EMBED_MODEL = os.environ.get("EMBED_MODEL", "qwen3-embedding-0.6b")
-LLM_FREQUENCY_PENALTY = float(os.environ.get("LLM_FREQUENCY_PENALTY", "0.6"))
-LLM_PRESENCE_PENALTY = float(os.environ.get("LLM_PRESENCE_PENALTY", "0.3"))
+LLM_FREQUENCY_PENALTY = float(os.environ.get("LLM_FREQUENCY_PENALTY", "0"))
+LLM_PRESENCE_PENALTY = float(os.environ.get("LLM_PRESENCE_PENALTY", "0"))
 LLM_VISION = os.environ.get("LLM_VISION", "0") == "1"                      # 0: photos are dropped before the LLM
 LLM_IMAGE_SIDE = int(os.environ.get("LLM_IMAGE_SIDE", "896"))             # photos are shrunk before the LLM sees them
 IMAGE_MODEL_PATH = os.environ.get("IMAGE_MODEL_PATH", "mflux-community/flux2-klein-4b-mflux-q4")
@@ -144,9 +144,13 @@ def llm_body(body: dict, messages: list) -> dict:
     kw = body.get("chat_template_kwargs") or {}
     out.update(model=LLM_MODEL, messages=messages, stream=False,
                chat_template_kwargs={**kw, "enable_thinking": bool(kw.get("enable_thinking", False))})
-    # A 4-bit 4B model loops on one word in Ukrainian and Russian without these (measured 2026-10-10).
-    out.setdefault("frequency_penalty", LLM_FREQUENCY_PENALTY)
-    out.setdefault("presence_penalty", LLM_PRESENCE_PENALTY)
+    # Off by default. A penalty stops the 4B pack looping on one word in Ukrainian, but it also punishes the
+    # repeated keys of a JSON list: with 0.6 the 35B pack filled the first post and left the next two as {}
+    # (2026-10-10). Only set them for free text, never for a caller that asks for lists of objects.
+    if LLM_FREQUENCY_PENALTY:
+        out.setdefault("frequency_penalty", LLM_FREQUENCY_PENALTY)
+    if LLM_PRESENCE_PENALTY:
+        out.setdefault("presence_penalty", LLM_PRESENCE_PENALTY)
     return out
 
 
@@ -290,7 +294,8 @@ async def generations(req: ImageRequest):
         w, h = size
         rw, rh = render_size(w, h, IMAGE_RENDER_SCALE)
         if src is None:
-            ref = None                                                 # no photo: plain text-to-image
+            ref = Image.new("RGB", (rw, rh), (255, 255, 255))         # no photo: a blank canvas, as on the Sparks.
+            # (The edit model cannot run without a reference: it fails in concatenate() on an empty list.)
         elif req.fit == "cover":
             ref = ImageOps.fit(src, (rw, rh), Image.LANCZOS)
         else:
