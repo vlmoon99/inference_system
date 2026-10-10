@@ -1,0 +1,12 @@
+[project]
+name = "inf-mac"
+version = "0.1.0"
+description = "The inference gateway on one Apple Silicon Mac: Ollama (LLM, embeddings) + mflux (Qwen-Image-Edit)"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+  "mflux==0.22.0",
+  "fastapi==0.115.6",
+  "uvicorn==0.34.0",
+  "httpx==0.28.1",
+  "pillow>=10",
+]

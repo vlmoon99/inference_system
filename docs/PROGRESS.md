@@ -55,6 +55,13 @@ Done 2026-10-10 in the hardening round (owner's decisions from the grilling sess
   a failing remote is logged as FAILED. Not verified against a real remote (none exists yet).
 * After it: inference smoke 14/14 on both nodes, BoostContent smoke 16/16, both sites 200.
 
+## 2026-10-10 evening: a Mac as a stand-in host (Sparks off, power cut)
+
+`hosts/mac/` (new, used by nothing else): MTPLX with Qwen 3.5 4B 4-bit + Qwen3-Embedding 0.6B, and FLUX.2 klein 4B
+4-bit on mflux, behind one small gateway on `:8000` with the same three public ids. BoostContent runs against it
+with `boostcontent_backend/deploy/mac/` (16/16 smoke, local and through a quick tunnel). Numbers and limits:
+`hosts/mac/README.md`. Nothing on the Sparks changes: no existing code file was edited in either repo.
+
 ## Decisions made overnight (owner asleep 2026-10-09 night → review in the morning)
 
 * Owner asked for a non-stop loop overnight with no input. Deletion is the only thing held back.
