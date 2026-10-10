@@ -215,7 +215,7 @@ services:
       - |
         export RCLONE_CONFIG_OFF_TYPE=crypt RCLONE_CONFIG_OFF_REMOTE="$$OFFSITE_REMOTE"
         export RCLONE_CONFIG_OFF_PASSWORD="$$(rclone obscure "$$OFFSITE_PASSPHRASE")"
-        rclone sync /backups off:db --include '*.dump' && touch /backups/.offsite-ok
+        rclone sync /backups off:db --include '*.dump' && touch /backups/.offsite-ok && echo done || { echo FAILED; exit 1; }
 
 volumes:
   searxng_cache:

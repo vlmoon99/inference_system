@@ -96,7 +96,7 @@ offsite() {
   watch "off-site backup" "$( (( now - (last > STARTED ? last : STARTED) < 259200 )) && echo 1)" 0 "no copy has left this room for 3 days"
   (( now - last >= 86400 && now - ${OFFSITE_TRIED:-0} >= 3600 )) || return 0
   OFFSITE_TRIED=$now
-  ( dc --profile tools run --rm -T offsite 2>&1 | tail -3 | while read -r l; do log "off-site backup: $l"; done ) &
+  ( dc --profile tools run --rm -T offsite 2>&1 | grep -v 'Container \|Config file' | tail -3 | while read -r l; do log "off-site backup: $l"; done ) &
 }
 
 # A container Docker itself failed to start at boot (tailnet IP missing) comes up afterwards WITHOUT its
@@ -164,7 +164,7 @@ ensure_follower() {   # of node $1
 }
 
 promote() {
-  alert "TAKEOVER: no master and no node above this one answers; this node's gateway database becomes the master"
+  alert "TAKEOVER: this node's gateway database becomes the master"
   docker exec -u postgres $DB pg_ctl promote -w -t 60 2>&1 | tail -1
   ROLE_OK=; ensure_master
 }
@@ -222,7 +222,7 @@ case "${1:-status}" in
     while true; do tick; checks; sleep "$TICK"; done ;;
   promote)
     [[ "$(local_role)" == t\ * ]] || { echo "this node is not a healthy follower: $(local_role)"; exit 1; }
-    log "promote asked for by hand"; docker exec -u postgres $DB pg_ctl promote -w -t 60 2>&1 | tail -1 ;;   # the loop does the rest
+    SERVICES=$(dc config --services); promote ;;
   alert) shift; alert "${*:-test message from deploy/node.sh alert}" ;;
   status)
     for i in "${!N[@]}"; do
