@@ -84,9 +84,11 @@ if [ "$(echo "${IMAGE_HEALTH:-}" | tr ',' '\n' | grep -c .)" -gt 1 ]; then
     || bad "load-balancing: $okn/4 ok, nodes that served: $served (before $before, after $after)"
 fi
 
-echo "== search"
-curl -sf "http://${TAILNET_IP}:8888/search?q=kyiv+bakery&format=json" | jget 'len(d["results"])' | grep -qE '^[1-9]' \
-  && ok "SearXNG json results" || bad "SearXNG returned no results"
+if docker ps --format '{{.Names}}' | grep -qx inf-searxng; then      # not a core service: only where a host file adds it
+  echo "== search"
+  curl -sf "http://${TAILNET_IP}:8888/search?q=kyiv+bakery&format=json" | jget 'len(d["results"])' | grep -qE '^[1-9]' \
+    && ok "SearXNG json results" || bad "SearXNG returned no results"
+fi
 
 echo "== node-agents"
 for n in $(echo "$ADMIN_NODES" | tr ',' ' '); do

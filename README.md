@@ -1,14 +1,67 @@
 # inference_system
 
 One local inference cloud for many projects: **LiteLLM** in front of self-hosted engines on tailnet
-machines. Public at `https://api.vramhouse.com/v1` (only `/v1`, through BoostContent's entry and tunnel); everything else is tailnet-only. Design: `docs/PLATFORM_PLAN.md`; scaling + cloud: `docs/SCALING_AND_CLOUD.md`;
+machines. Public at `https://api.vramhouse.com/v1` (only `/v1`, through BoostContent's entry and tunnel);
+everything else is tailnet-only. Design: `docs/PLATFORM_PLAN.md`; scaling + cloud: `docs/SCALING_AND_CLOUD.md`;
 progress log: `docs/PROGRESS.md`.
+
+## The cluster
+
+Every node runs the same thing (`hosts/core.yaml`), so any node can serve any request and any node can die:
+
+```
+            project ──► gateway (LiteLLM, :8000 on every node)
+                           │   checks the project key, logs usage
+                           ▼
+                        balancer (Caddy, 127.0.0.1:18xxx on every node)
+                           │   asks each node's engine /health every 5 s, sends to the least busy live one
+              ┌────────────┴────────────┐
+           node A engines            node B engines         ← CORE models: on every node
+           LLM · embeddings · image  LLM · embeddings · image
+                                     + a non-core engine    ← NON-CORE: only where a host file adds it,
+                                                              but served by every node's gateway
+```
+
+| | Where | If a node dies |
+|---|---|---|
+| **Core models** (`qwen3.6-35b`, `qwen3-embedding-0.6b`, `qwen-image-edit`) | every node | the balancers drop it within 5 s; requests in flight are sent again to a live node |
+| **Non-core models** | the nodes that have the engine | served while one of its nodes lives |
+| **Gateway + balancer + admin** | every node | use another node's `:8000`; the public name does that by itself |
+| **Gateway database** (project keys, usage) | one master, the others live standbys | the next node in `NODES` takes over (`deploy/node.sh`), about 45 s; every gateway then writes to the new master |
+
+`deploy/node.sh` (user unit `inf-node.service`) is the only thing that starts the stack. Don't `docker compose up`
+by hand.
+
+```
+deploy/node.sh status     # every node: database role, gateway, each core engine
+deploy/node.sh promote    # make this node's database the master now
+journalctl --user -u inf-node -f
+```
+
+**Add a core node**: copy the two images that have no Dockerfile (`docker save vllm-node:latest | ssh <node>
+docker load`, same for `product_dream-svc-embed:latest`) and the two model folders from `~/.cache/huggingface/hub`,
+clone this repo, write `hosts/<host>/compose.yaml` (a copy of dgx-spark-2's) and its `.env` (dgx-spark's with
+`TAILNET_IP`, `HOST_NAME`, `COMFY_DIR`, `COMFY_BASE` changed), add the node to `NODES` and `ADMIN_NODES` on every
+node, `docker compose build`, `deploy/install-unit.sh`. It clones the database and joins the balancers.
+
+**Add a non-core model** (lives on some nodes, reachable through all):
+1. the engine: a service in those hosts' `hosts/<host>/compose.yaml`, listening on the tailnet IP with `ENGINE_KEY`;
+2. the balancer: a block in `gateway/Caddyfile` with a free `127.0.0.1` port and exactly those nodes;
+3. the name: an entry in `gateway/litellm.yaml` pointing at that port.
+Push, pull on every node, `docker compose up -d lb litellm` (through `node.sh` it happens at the next restart).
+
+Proven on the two Sparks (2026-10-10): 12 parallel chats split 6/6; the LLM killed under load, 10 of 10 requests
+in flight still answered; the gateway + database of the master stopped, the public API answered again after
+46 s from the other node, a key made there worked everywhere after the first node returned; smoke 14/14.
+Limits: no voting (all nodes in one room, see `deploy/node.sh`); takeover was simulated by stopping containers
+(`NODE_NO_PING=1`), not a power-off; a request that is already streaming when its node dies is cut (only
+requests that have not started answering are sent again); the admin password file is per node (copied once).
 
 ## Using it from a project
 
 ```
 base_url = https://api.vramhouse.com/v1     # OpenAI-compatible, from anywhere (project key)
-base_url = http://100.64.0.1:8000/v1        # the same gateway inside the tailnet
+base_url = http://100.64.0.1:8000/v1        # inside the tailnet: any node's gateway (…0.1, …0.12)
 api_key  = <the project's key from the admin → Projects>
 ```
 

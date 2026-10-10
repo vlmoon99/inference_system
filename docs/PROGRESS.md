@@ -24,20 +24,20 @@ Rules for whoever works on it:
 
 ## Next action
 
-The migration is closed. BoostContent now runs as a 2-node cluster (dgx-spark master, dgx-spark-2 follower,
-automatic takeover: boostcontent_backend/README.md "More than one machine"). What remains:
-1. Public inference is LIVE: `https://api.vramhouse.com/v1` (owner added the hostname → `localhost:3100` on
-   the existing tunnel, 2026-10-10). Verified from outside: 401 without a key; models, chat, streaming (SSE),
-   embeddings with a project key; `/`, `/ui/`, `/key/*`, `/openapi.json` → 404. Next: give Obliq its own project
-   key and point it here. The gateway still lives on dgx-spark only (INFERENCE_UPSTREAMS takes a second one).
-2. **Owner: real power-off test.** Power dgx-spark off (not just reboot): boostcontent.io must come back from
-   spark-2 within ~2 min; power it on again: `deploy/node.sh status` shows it as follower.
-3. Owner connects the Flutter client (dio): boostcontent_backend/README.md.
-4. Not done: inference itself has no second home (LLM + gateway + its key DB live on dgx-spark only, so
-   generation stops when it is off); real sign-in providers; the other projects.
+The migration is closed. Both systems are 2-node clusters with automatic takeover (dgx-spark = master of both
+databases, dgx-spark-2 = follower; README "The cluster" here, "More than one machine" in boostcontent_backend).
+Public: https://boostcontent.io and https://api.vramhouse.com/v1. What remains:
+1. **Owner: real power-off test.** Power dgx-spark off (not just reboot): boostcontent.io and api.vramhouse.com
+   must answer again from spark-2 within ~2 min, and posts must still generate. Power it on: both
+   `deploy/node.sh status` show it as follower. Every takeover so far was simulated by stopping containers.
+2. Owner connects the Flutter client (dio): boostcontent_backend/docs/FLUTTER.md. Obliq: give it its own
+   project key (admin → Projects) and point it at https://api.vramhouse.com/v1.
+3. Non-core models: the mechanism is in place (README "Add a non-core model") but none is defined yet. Candidates
+   on spark-2: Qwen-Image-2512, LTX-2.5 (weights already in ~/ComfyUI).
+4. Not done: real sign-in providers; the other projects; SearXNG runs on dgx-spark only.
 5. Leftovers to delete when the owner says so: spark-2 volume `bc-replica_db_data` and
-   `~/boostcontent_backend/replica/.data` (first replica attempt), Garage key `bc-replica`,
-   `~/.config/ai-brain/backup.pass`, 12+ orphan test pictures in the bucket.
+   `~/boostcontent_backend/replica/.data`, Garage key `bc-replica`, `~/.config/ai-brain/backup.pass`, orphan test
+   pictures in the bucket, `hosts/dgx-spark-2/.env.before-cluster`, the `dart:stable` image on dgx-spark.
 
 ## Decisions made overnight (owner asleep 2026-10-09 night → review in the morning)
 
@@ -175,3 +175,17 @@ Kept as the record of what was removed.
   stack on a live host is NOT taken over; final state dgx-spark master, smoke 16/16, pgTAP 38/38.
   Takeover was simulated (`NODE_NO_PING=1`), not a power-off. boostcontent.io was down ~2 min + ~40 s during the tests.
   Also: a failed nightly dump now retries in 5 min (the 08:16 one after the power cut had failed silently).
+
+* 2026-10-10 inference cluster (owner: "same logic, core models on all nodes + non-core reachable from any node").
+  `hosts/core.yaml` on both Sparks: LLM + embeddings + Qwen-Edit + balancer + gateway + admin everywhere; engines
+  moved from 127.0.0.1 to the tailnet IP behind `ENGINE_KEY`; `deploy/node.sh` + `inf-node.service` replace
+  boot-up.sh. vllm-node / svc-embed images and the two model folders were copied to spark-2 (60 GB over the LAN).
+  Decisions: (1) balancing is Caddy's job, not LiteLLM's: LiteLLM with two deployments hung >100 s on a dead host
+  (measured in a scratch gateway), Caddy health-checks every 5 s; (2) the gateway and the admin run on every node,
+  only the gateway DATABASE has a master, and every gateway writes to it; (3) BoostContent on each node uses its
+  own node's gateway, and the public name tries every gateway.
+  Verified: 12 parallel chats split 6/6; LLM killed under load → 10/10 in-flight requests answered (after
+  adding `request_buffers`: without it the retry failed and the good node was marked down for 20 s); gateway +
+  database of the master stopped → public chat back in 46 s from spark-2, a key created there works everywhere;
+  return + fail-back (timeline 3, dgx-spark master again); smoke 14/14 here, 13/13 on spark-2 (no SearXNG there);
+  BoostContent smoke 16/16. The LLM here was reloaded 4 times during the tests (~4 min each, chat served by spark-2).

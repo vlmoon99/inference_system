@@ -15,10 +15,10 @@ docker compose up -d --build
 | admin | inf-admin | **100.64.0.1:8091** | first visit sets the password; reset: `docker exec inf-admin python -m reset` |
 | node-agent | inf-node-agent | **100.64.0.1:8090** | `X-Agent-Token` |
 | SearXNG | inf-searxng | **100.64.0.1:8888** | `/search?q=…&format=json` |
-| vLLM Qwen3.6-35B-A3B-NVFP4 | inf-llm | 127.0.0.1:8010 | `LLM_GPU_UTIL=0.26` |
-| Qwen3-Embedding-0.6B | inf-embed | 127.0.0.1:8013 | 1024-dim, last-token pool, L2 |
+| vLLM Qwen3.6-35B-A3B-NVFP4 | inf-llm | **100.64.0.1:8010** (key) | `LLM_GPU_UTIL=0.26` |
+| Qwen3-Embedding-0.6B | inf-embed | **100.64.0.1:8013** (key) | 1024-dim, last-token pool, L2 |
 | ComfyUI v0.33.3 | inf-comfyui | 127.0.0.1:8188 | `--highvram`; code + weights from `~/ComfyUI` |
-| inf-image (Qwen-Image-Edit-2511) | inf-image | 127.0.0.1:8102 | OpenAI images API + URL contract |
+| inf-image (Qwen-Image-Edit-2511) | inf-image | **100.64.0.1:8102** (key) | OpenAI images API + URL contract |
 
 Everything has `restart: unless-stopped`: after a power cut Docker brings it all back. The tailnet-bound
 services crash-loop until tailscaled has the IP, then settle.
