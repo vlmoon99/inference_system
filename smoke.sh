@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Inference v1 definition of done. Run on dgx-spark:   ./smoke.sh
+# Inference definition of done. Run on any node (it tests that node's own gateway):   ./smoke.sh
 # Creates a throwaway project key, exercises every model through the gateway exactly like a
 # project would, checks revocation, usage logging and the node-agents, then deletes the key.
 # Exit 0 = PASS. Needs: curl, python3 (stdlib only).
 set -uo pipefail
 cd "$(dirname "$0")"
-set -a; . hosts/dgx-spark/.env; set +a
+set -a; . "$(ls hosts/*/.env | head -1)"; set +a      # the host dir that has a .env is this machine
 GW="http://${TAILNET_IP}:8000"
 BLOB_PORT=$(python3 -c 'import socket;s=socket.socket();s.bind(("127.0.0.1",0));print(s.getsockname()[1])')
 TMP=$(mktemp -d)

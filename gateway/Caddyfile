@@ -22,7 +22,9 @@
 		health_uri /health
 		health_interval 5s
 		health_timeout 3s
-		fail_duration 20s
+		fail_duration 6s
+		request_buffers 32MB      # keeps the request body so it can be sent again to another node (without this
+		                          # a retry fails with "invalid Read on closed Body" and marks the good node down)
 		flush_interval -1
 		transport http {
 			dial_timeout 2s
