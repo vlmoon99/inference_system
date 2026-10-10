@@ -24,15 +24,19 @@ Rules for whoever works on it:
 
 ## Next action
 
-The migration is closed (steps 0–5 done, old system deleted, admin passwords set). Since then: proper HTTP error
-statuses, and dgx-spark-2 keeps a live copy of BoostContent (standby + dumps + media). What remains:
-1. **Owner: reboot test.** Reboot dgx-spark, wait ~5 min, run `~/Documents/dev/boostcontent_backend/smoke.sh`
-   and `ssh 100.64.0.12 '~/boostcontent_backend/replica/status.sh'`. Proves the boot self-heal (bc-db now
-   also publishes on the tailnet IP, so it is one more container that path has to cover).
-2. Owner is buying a domain for public inference (then: tunnel hostname → gateway :8000; Obliq comes back).
+The migration is closed. BoostContent now runs as a 2-node cluster (dgx-spark master, dgx-spark-2 follower,
+automatic takeover: boostcontent_backend/README.md "More than one machine"). What remains:
+1. **Public inference on vramhouse.com** (owner bought it 2026-10-10): owner adds the zone to Cloudflare and a
+   public hostname `api.vramhouse.com` → `http://100.64.0.1:8000` (path `^/v1/`) on the existing tunnel; then
+   verify `https://api.vramhouse.com/v1/models` with a project key and update README/Obliq.
+2. **Owner: real power-off test.** Power dgx-spark off (not just reboot): boostcontent.io must come back from
+   spark-2 within ~2 min; power it on again: `deploy/node.sh status` shows it as follower.
 3. Owner connects the Flutter client (dio): boostcontent_backend/README.md.
-4. Not done: failover to spark-2 is manual and unrehearsed; inference DBs (LiteLLM keys/usage) have dumps on
-   dgx-spark only; real sign-in providers; the other projects.
+4. Not done: inference itself has no second home (LLM + gateway + its key DB live on dgx-spark only, so
+   generation stops when it is off); real sign-in providers; the other projects.
+5. Leftovers to delete when the owner says so: spark-2 volume `bc-replica_db_data` and
+   `~/boostcontent_backend/replica/.data` (first replica attempt), Garage key `bc-replica`,
+   `~/.config/ai-brain/backup.pass`, 12+ orphan test pictures in the bucket.
 
 ## Decisions made overnight (owner asleep 2026-10-09 night → review in the morning)
 
@@ -163,3 +167,10 @@ Kept as the record of what was removed.
   (seconds) for the new pg_hba + tailnet port. NOT verified: promotion/failover, behaviour across a reboot.
   Owner decisions: no coding LLM on the Sparks (coding stays on the Mac); `~/.config/ai-worker` deleted on
   request (`~/.config/ai-brain/backup.pass` left: it is a backup password, not asked about).
+* 2026-10-10 cluster: `replica/` and `boot-up.sh` replaced by `deploy/node.sh` + `bc-node.service` on both
+  Sparks (owner's design: fixed priority, pings, no quorum, all nodes in one room). Verified live:
+  spark-2 took over (public API back 38 s after the decision; smoke 16/16 through Cloudflare on spark-2);
+  dgx-spark returned, yielded (timeline 1 < 2) and re-cloned; fail-back the same way (timeline 3); a stopped
+  stack on a live host is NOT taken over; final state dgx-spark master, smoke 16/16, pgTAP 38/38.
+  Takeover was simulated (`NODE_NO_PING=1`), not a power-off. boostcontent.io was down ~2 min + ~40 s during the tests.
+  Also: a failed nightly dump now retries in 5 min (the 08:16 one after the power cut had failed silently).
