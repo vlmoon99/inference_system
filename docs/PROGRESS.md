@@ -58,7 +58,8 @@ Plan steps 0–5 are done, plus overnight extras (backups, CORS, boot units, sca
   "BoostContent"; *.boostcontent.io (old tenant subdomains) reach the same Caddy and get the same answer.
 * Power cut: user units `inf-stack.service` (both Sparks) and `bc-stack.service` wait for the tailnet IP, then
   `docker compose up -d`. Docker starts before tailscaled, and tailnet-bound ports otherwise stay down.
-  Verified by stopping those containers and starting the units. A real reboot was NOT tested (no sudo, owner asleep).
+  Verified by stopping those containers and starting the units. A real reboot happened 2026-10-10 08:16 UTC
+  (both Sparks) and found one gap, now fixed: see the log.
 * Backups: bc-backup + inf-backup pg_dump daily to `<repo>/.data/backups` (14 days). Garage objects are NOT
   backed up yet (photos/renders); for S1 move them to R2 (docs/SCALING_AND_CLOUD.md).
 * Test data from tonight was deleted from the BoostContent DB and bucket; smoke.sh now cleans up after itself.
@@ -128,3 +129,11 @@ Everything here is **stopped and disabled** overnight, but **not deleted**. Owne
 * 2026-10-09 extras: nightly pg_dump (both stacks, verified restorable listing), Garage CORS (preflight via
   Cloudflare OK), boot units on both Sparks, docs/SCALING_AND_CLOUD.md, admin usage keeps names of deleted keys,
   smoke cleanup. Final: inference smoke 14/14, BoostContent smoke 16/16 (local + public), pgTAP 38/38.
+* 2026-10-10 08:16 UTC REAL REBOOT of both Sparks (power cut, not planned). The boot units brought both stacks up,
+  but bc-caddy, bc-garage and inf-searxng ran **without their published ports**, so boostcontent.io answered 502
+  for ~20 min. Cause: Docker tried to start them before the tailnet IP existed ("cannot assign requested address");
+  the later `compose up` started them with no port mappings, and restart / stop+start didn't restore them
+  (Docker 29.2.1). Fixed by recreating the three containers (data is in named volumes). Both `deploy/boot-up.sh`
+  now recreate any service whose configured ports aren't published. Verified after the fix: inference smoke 14/14,
+  BoostContent smoke 16/16, https://boostcontent.io 200. The self-heal branch ran as a no-op on the healthy
+  system; it has NOT been exercised by another real reboot. dgx-spark-2 needed nothing (host-network services).
