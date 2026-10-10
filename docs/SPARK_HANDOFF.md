@@ -24,6 +24,9 @@ New in git since the Sparks last pulled (new folders and three migrations; no ex
   `20261010000013_items` (market items; `generate_posts(business_id, n, item_id?, about?)`),
   `20261010000014_discard_batch` (`discard_batch(batch_id)`), plus pgTAP `db/tests/50_items.sql` (19).
 
+> **Update 2026-10-10 21:10 UTC:** steps 1, 2 and 3 below were done from the Mac over ssh (details in
+> `docs/PROGRESS.md`). Steps 4 and 5 are standing rules. What is left is the watchdog bug described there.
+
 ## Do this on the Sparks, in this order
 
 1. **Pull both repos on both nodes.** `git pull` in `inference_system` and `boostcontent_backend`.

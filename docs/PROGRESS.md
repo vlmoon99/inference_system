@@ -55,6 +55,36 @@ Done 2026-10-10 in the hardening round (owner's decisions from the grilling sess
   a failing remote is logged as FAILED. Not verified against a real remote (none exists yet).
 * After it: inference smoke 14/14 on both nodes, BoostContent smoke 16/16, both sites 200.
 
+## 2026-10-10 21:00 UTC: both Sparks back after the second power cut, node0 repaired by hand (from the Mac, over ssh)
+
+State found: dgx-spark-2 master of both databases (timeline 4) with no follower; on dgx-spark `bc-db`,
+`bc-garage` and `inf-litellm-db` were running or exited **with no Docker network attached** (`NetworkSettings.Networks`
+empty, no published ports), so the follower could not reach the master ("Network is unreachable") and had not
+replayed anything for 5 h 20 min. Each node reported the other's database as "not answering".
+
+**Why the watchdog did not heal it (a bug, not fixed yet):** `probe()` in both `deploy/node.sh` runs `psql` with
+`docker exec` inside the local database container. A container without a network cannot reach any node, so the
+node sees "no master", never gets to `ensure_follower`, and `heal_ports` (which would recreate it) is only called
+from there. It also only looks at published ports of services compose lists. Proposed fix: at the top of `tick`,
+recreate any stack container whose `NetworkSettings.Networks` is empty, and probe from `--network host` when the
+local container has no network.
+
+Done, on dgx-spark only (the follower; nothing public runs there):
+* `docker compose up -d --no-build --no-deps --force-recreate db garage` in boostcontent_backend and the same for
+  `litellm-db` in `hosts/dgx-spark` (the watchdog's own `heal_ports` command, run by hand). Both followers
+  stream again: lag 2 s, `status` on both nodes shows node0 follower / node1 MASTER for both databases.
+* `inf-searxng` had exited 127 since the first outage: the old container still carried a bind mount of
+  `hosts/dgx-spark/searxng`, which no longer exists, and a recreate inherits it. Removed the container and
+  started it from the current compose: search answers, the watchdog stopped looping on it.
+* Both repos pulled on both nodes (new folders `hosts/mac`, `deploy/mac`; nothing restarted).
+* BoostContent migrations 0012, 0013, 0014 applied on the master (dgx-spark-2) after a dump
+  (`.data/backups/before-0012-0014.dump`); the follower has them. pgTAP: ALL 98 PASSED. BoostContent smoke on
+  dgx-spark-2 16/16 (post ready in 40 s); inference smoke on dgx-spark 14/14.
+
+Not done: the five README checks after a real outage were not walked one by one; nobody failed back (dgx-spark-2
+stays master); the watchdog bug above. The public names still point at the Mac (see `docs/SPARK_HANDOFF.md`),
+and the Mac's backend sends its model calls to `100.64.0.12:8000`.
+
 ## 2026-10-10 evening: a Mac as a stand-in host (Sparks off, power cut)
 
 `hosts/mac/` (new, used by nothing else): MTPLX with Qwen 3.5 4B 4-bit + Qwen3-Embedding 0.6B, and FLUX.2 klein 4B
