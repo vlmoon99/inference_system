@@ -55,17 +55,26 @@ Done 2026-10-10 in the hardening round (owner's decisions from the grilling sess
   a failing remote is logged as FAILED. Not verified against a real remote (none exists yet).
 * After it: inference smoke 14/14 on both nodes, BoostContent smoke 16/16, both sites 200.
 
-## 2026-10-11 19:10 UTC: STARTED: GLM-5.3-Flash on both Sparks together (the model `glm-5.3-flash`)
+## 2026-10-11 20:00 UTC: GLM-5.3-Flash runs on both Sparks together (the model `glm-5.3-flash`)
 
 Owner's decision: BoostContent stays on the clouds (`hosts/cloud`, :8011), so the Sparks' GPUs are free for one
 large model over both machines: GLM-5.3-Flash EXL3 4 bpw on TensorFold, two ranks over the CX7 cable
-(MiaAI-Lab's recipe, cloned to `~/glm53-flash/repo` on dgx-spark, the head; dgx-spark-2 is the worker).
-* Done before this line: image `tensorfold-glm53:v0.6.0` and the checkpoint (164 GiB + DFlash2) on both Sparks.
-* In this commit: profile `engines` on llm / comfyui / image in `hosts/core.yaml`, `deploy/engines.sh on|off`,
-  the balancer block `:18899` and the gateway model `glm-5.3-flash`.
-* Next: `deploy/engines.sh off` on both Sparks (stops `qwen3.6-35b` and `qwen-image-edit` here; embeddings,
-  gateway, databases and the cloud gateway keep running), `~/glm53-flash/repo/start.sh`, checks, then this
-  entry is rewritten with what was verified. To go back: `~/glm53-flash/repo/stop.sh`, `deploy/engines.sh on` on both.
+(MiaAI-Lab's recipe in `~/glm53-flash/repo` on dgx-spark, the head; dgx-spark-2 is the worker). README "GLM".
+* `hosts/core.yaml`: llm / comfyui / image carry the profile `engines`; `deploy/engines.sh on|off` sets
+  `COMPOSE_PROFILES` in the host's .env and restarts the watchdog, which then minds 8 services instead of 11 and no
+  longer alerts on the two missing engines. **Engines are OFF on both Sparks now**: `qwen3.6-35b` and
+  `qwen-image-edit` do not answer on :8000 (api.vramhouse.com included); embeddings do.
+* GLM listens on `192.168.177.1:8899` (the cable, no key); balancer `:18899`, gateway model `glm-5.3-flash`.
+  `inf-lb` and `inf-litellm` were recreated on both nodes to read the new files.
+* Verified: `start.sh` LIVE after 378 s (the first attempt failed with NCCL error 2 and the script started again by
+  itself: its issue #36), 1,048,576-token window, 4 at once, pool 2,179,072 tokens. Through the gateway of both
+  nodes with a throwaway key (deleted): chat, a tool call and its result, streaming, Anthropic `/v1/messages` with a
+  tool and streamed, a code task whose asserts ran; through https://api.vramhouse.com/v1 one chat. Numbers in
+  `hosts/dgx-spark/README.md`.
+* `inf-glm.service` is enabled on dgx-spark (not started: the server was started by hand). **Not tried: a reboot.**
+* Both Sparks now reach the internet over the wired LAN (`spark-lan`: static default route via 192.168.0.1, set
+  by the owner with sudo; DHCP's gateway 192.168.0.2 has no uplink). Wi-Fi stays as the fallback.
+* To go back: `~/glm53-flash/repo/stop.sh`, then `deploy/engines.sh on` on both Sparks.
 
 ## 2026-10-10 21:35 UTC: the Sparks are the server again; the Mac's data moved here; the Mac is off
 

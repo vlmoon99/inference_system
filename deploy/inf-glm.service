@@ -1,0 +1,20 @@
+# ~/.config/systemd/user/inf-glm.service on the HEAD Spark only (dgx-spark): GLM-5.3-Flash over both Sparks, back
+# after a reboot. Install: cp it there, `systemctl --user daemon-reload && systemctl --user enable inf-glm`.
+# It starts only while this node's own GPU models are off (deploy/engines.sh off), and tries again every 2 minutes
+# until the other Spark is up too. By hand: ~/glm53-flash/repo/start.sh | stop.sh (README "GLM").
+[Unit]
+Description=inference_system: GLM-5.3-Flash on both Sparks (TensorFold, ~/glm53-flash/repo)
+After=default.target
+
+[Service]
+Environment=FOREGROUND=1
+ExecCondition=/bin/sh -c '! grep -qE "^COMPOSE_PROFILES=.*engines" %h/Documents/dev/inference_system/hosts/dgx-spark/.env'
+ExecStartPre=/bin/sh -c 'for i in $(seq 60); do docker info >/dev/null 2>&1 && exit 0; sleep 5; done; exit 1'
+ExecStart=%h/glm53-flash/repo/start.sh
+Restart=on-failure
+RestartSec=120
+TimeoutStartSec=infinity
+TimeoutStopSec=180
+
+[Install]
+WantedBy=default.target

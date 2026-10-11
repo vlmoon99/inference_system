@@ -67,6 +67,31 @@ node (copied once: change it on both).
 5. If a node came back as a second master and did not yield, stop its unit (`systemctl --user stop inf-node bc-node`)
    and read its journal before anything else.
 
+### GLM: one model over both Sparks
+
+`glm-5.3-flash` is GLM-5.3-Flash (EXL3 4 bpw) on TensorFold: ONE engine in two halves, rank 0 on dgx-spark (the
+head) and rank 1 on dgx-spark-2, talking over the CX7 cable. It takes ~110 GiB on each Spark, so it runs INSTEAD of
+the Sparks' own GPU models (`qwen3.6-35b`, `qwen-image-edit` answer 5xx on :8000 meanwhile; embeddings, search, the
+gateway, the databases and the cloud gateway :8011 are untouched). Both Sparks must be up: one alone cannot serve it.
+
+```
+deploy/engines.sh off            # on BOTH Sparks: stop llm / comfyui / image, the watchdog stops minding them
+~/glm53-flash/repo/start.sh      # on dgx-spark: both ranks, ~6 min to load; prints LIVE
+~/glm53-flash/repo/stop.sh       # and back: stop GLM, then `deploy/engines.sh on` on BOTH Sparks
+curl -s http://192.168.177.1:8899/health      # streams, pool_free_tokens (from either Spark)
+```
+
+* The recipe is MiaAI-Lab's (`github.com/MiaAI-Lab/GLM-5.3-Flash-EXL3-2x-DGX-Sparks-TensorFold`), cloned to
+  `~/glm53-flash/repo` on dgx-spark; this setup's values are in its `scripts/local.sh` (not in git). The worker has
+  no clone: image and weights are copied to it by `scripts/prepare.sh`.
+* The engine has no API key, so it listens on the head's cable address `192.168.177.1:8899`, which only the two
+  Sparks reach. Projects use the gateway like any model (balancer block `:18899`, entry in `litellm.yaml`).
+* After a reboot `inf-glm.service` (user unit on dgx-spark, `deploy/inf-glm.service`) starts it again while the
+  engines are off, and keeps trying until dgx-spark-2 is up.
+* The default drafter (DFlash2) is licensed for non-commercial use only. For paying traffic set `DRAFTER=mtp` in
+  `scripts/local.sh` (one request at a time) and `start.sh restart`.
+* `./smoke.sh` fails its `qwen3.6-35b` and image checks while the engines are off: expected.
+
 ### Alerts and the off-site copy (both off until set)
 
 `ALERT_URL` in the host's `.env`: the watchdog POSTs `{"text": "..."}` there when it takes over, when two masters
@@ -97,6 +122,7 @@ A new key gets 30 and 2. Over the limit the gateway answers **HTTP 429**: wait a
 | `qwen3.6-35b` | `/v1/chat/completions` (streaming, tools; thinking on by default, `chat_template_kwargs.enable_thinking=false` to skip) |
 | `qwen3-embedding-0.6b` | `/v1/embeddings` (1024-dim) |
 | `qwen-image-edit` | `/v1/images/generations` (JSON) and `/v1/images/edits` (multipart) |
+| `glm-5.3-flash` | `/v1/chat/completions` and Anthropic `/v1/messages` (streaming, tools, images; 1M-token window; thinks by default, so give `max_tokens` room). Up while GLM runs instead of the Sparks' own models: "GLM" above |
 
 **Images, URL contract.** Add `image_url` (pre-signed GET of a photo to edit) and/or `output_put_url`
 (pre-signed PUT where the PNG goes). The reply's `data[0].url` is the object URL without the signature.

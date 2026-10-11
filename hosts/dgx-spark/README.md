@@ -37,3 +37,10 @@ services crash-loop until tailscaled has the IP, then settle.
 
 The memory rule from the old system still governs: on GB10, vLLM and ComfyUI size themselves from MemFree,
 and page cache counts against them. If renders slow down to minutes, look at `free -g` first.
+
+## GLM-5.3-Flash over both Sparks (2026-10-11, recipe defaults: PARALLEL=4, fp8 KV, q4 dense, DFlash2 drafts)
+
+Rank 0 here, rank 1 on dgx-spark-2, two RoCE rails. Load 376 s. Startup estimate 88.09 GiB of 98.04; MemAvailable
+with the server idle: 8-9 GiB here, 10 GiB on dgx-spark-2 (114 GiB each before the start, engines off).
+Through the gateway: one request 3,000 tokens in 44.9 s (66.8 tok/s, prefill included); 4 at once 6,000 tokens in
+56.9 s (105.5 tok/s together). Checkpoint 164 GiB + DFlash2 2.2 GiB in `~/.cache/huggingface`, image 24.6 GB.
