@@ -304,3 +304,17 @@ Kept as the record of what was removed.
   and runs no model: its gateway sends chat to NEAR AI and pictures to Comfy Cloud. Not decided by the owner
   yet: whether the Mac's backend should send its model calls to the Sparks instead
   (`boostcontent_backend/deploy/mac/inference.sh sparks`), and which database wins.
+* **2026-10-11 15:50 UTC: the Sparks serve again; BoostContent's model calls go to the clouds from the Sparks.**
+  New `hosts/cloud` (a second gateway, `:8011` on the tailnet address: NEAR AI for chat and embeddings, Comfy Cloud
+  for pictures, the code of `hosts/mac/gateway.py` + `services/image` in one image). It runs on both Sparks from a
+  **separate clone, `~/inference_cloud`**, with `restart: unless-stopped`; the working checkouts of this repo on
+  the Sparks were NOT pulled and nothing of the core stack was restarted or reconfigured, so the Sparks' own models
+  on `:8000` are exactly as before (and `api.vramhouse.com` still reaches them). It is not supervised by
+  `deploy/node.sh`. BoostContent chooses with `boostcontent_backend/deploy/inference.sh cloud | own` on each node
+  (now: `cloud`). The databases were merged onto the Sparks and the names point at `test_ads_client` again
+  (`boostcontent_backend/deploy/mac/RUNBOOK.md`). Verified: `/health` of both cloud gateways, BoostContent `smoke.sh`
+  16/16 through boostcontent.io on dgx-spark-2 (a post with one picture in 71 s, rendered on Comfy Cloud), pgTAP
+  168 on the master, both followers streaming. The Mac's backend, tunnel and gateway are stopped.
+  NOT done: pulling this repo into the Sparks' working checkouts (it would recreate `inf-image` with the new
+  environment lines of `hosts/core.yaml` at the next watchdog tick; harmless by design, but untested there), and
+  the watchdog fix for network-less containers.
