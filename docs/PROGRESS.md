@@ -292,3 +292,15 @@ Kept as the record of what was removed.
   For the Sparks: `hosts/core.yaml` passes `IMAGE_BACKEND`, `IMAGE_QUALITY`, `COMFY_API_KEY`, `COMFY_URL` to
   inf-image with defaults that keep today's behaviour, and `gateway/litellm.yaml` has a commented NEAR AI entry.
   NOT verified: anything on the Sparks (they were off), the cost of a picture in Comfy credits.
+* **2026-10-11 evening: both Sparks back after the third power cut; node0 repaired by hand again.** Found:
+  dgx-spark-2 master of both databases (timeline 4), all its containers up, both gateways answering with llm,
+  embed and image ok. On dgx-spark `bc-db`, `inf-litellm-db` and `bc-garage` had come up with no Docker network
+  again (the watchdog bug above, third time), replication had been down for 2 h 17 min, `inf-searxng` exited 255.
+  Done on dgx-spark only: `docker compose --profile follower up -d --no-build --no-deps --force-recreate db garage`
+  in boostcontent_backend and `--force-recreate litellm-db` in `hosts/dgx-spark`. After it: both followers
+  streaming (3 s), searxng up by itself. **Nothing else was changed on the Sparks**: their repos are at the
+  commits from 2026-10-10 (backend `1aa83c2`), so BoostContent migrations 0016–0019 are NOT applied there, and
+  the public names still point at the Mac's tunnel `bc-mac`. The Mac stays the server (database, storage, API)
+  and runs no model: its gateway sends chat to NEAR AI and pictures to Comfy Cloud. Not decided by the owner
+  yet: whether the Mac's backend should send its model calls to the Sparks instead
+  (`boostcontent_backend/deploy/mac/inference.sh sparks`), and which database wins.
