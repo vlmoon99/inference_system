@@ -55,6 +55,18 @@ Done 2026-10-10 in the hardening round (owner's decisions from the grilling sess
   a failing remote is logged as FAILED. Not verified against a real remote (none exists yet).
 * After it: inference smoke 14/14 on both nodes, BoostContent smoke 16/16, both sites 200.
 
+## 2026-10-11 19:10 UTC: STARTED: GLM-5.3-Flash on both Sparks together (the model `glm-5.3-flash`)
+
+Owner's decision: BoostContent stays on the clouds (`hosts/cloud`, :8011), so the Sparks' GPUs are free for one
+large model over both machines: GLM-5.3-Flash EXL3 4 bpw on TensorFold, two ranks over the CX7 cable
+(MiaAI-Lab's recipe, cloned to `~/glm53-flash/repo` on dgx-spark, the head; dgx-spark-2 is the worker).
+* Done before this line: image `tensorfold-glm53:v0.6.0` and the checkpoint (164 GiB + DFlash2) on both Sparks.
+* In this commit: profile `engines` on llm / comfyui / image in `hosts/core.yaml`, `deploy/engines.sh on|off`,
+  the balancer block `:18899` and the gateway model `glm-5.3-flash`.
+* Next: `deploy/engines.sh off` on both Sparks (stops `qwen3.6-35b` and `qwen-image-edit` here; embeddings,
+  gateway, databases and the cloud gateway keep running), `~/glm53-flash/repo/start.sh`, checks, then this
+  entry is rewritten with what was verified. To go back: `~/glm53-flash/repo/stop.sh`, `deploy/engines.sh on` on both.
+
 ## 2026-10-10 21:35 UTC: the Sparks are the server again; the Mac's data moved here; the Mac is off
 
 Owner's decision: the Sparks host everything, the Mac leaves. Done from the Mac over ssh:

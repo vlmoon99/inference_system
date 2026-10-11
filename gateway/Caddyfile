@@ -47,3 +47,9 @@ http://:18102 {
 # http://:18200 {
 # 	import engine 100.64.0.12:8200
 # }
+
+# GLM-5.3-Flash: ONE engine over both Sparks (TensorFold, two ranks over the CX7 cable; README "GLM"). Its API is
+# on the head's cable address, which only the two Sparks reach: it has no key of its own.
+http://:18899 {
+	import engine 192.168.177.1:8899
+}

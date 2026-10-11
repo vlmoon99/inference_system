@@ -74,6 +74,7 @@ checks() {     # every 30 s; these only tell, they change nothing
   local now p c f i master=; now=$(date +%s)
   (( now - ${CHECKED:-0} >= 30 )) || return 0; CHECKED=$now
   for p in 8000:gateway 8010:llm 8013:embed 8102:image; do
+    [ "${p##*:}" = gateway ] || grep -qx "${p##*:}" <<<"$SERVICES" || continue      # engines off: nothing to miss
     c=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "http://$TAILNET_IP:${p%%:*}/health$([ ${p%%:*} = 8000 ] && echo /liveliness)")
     watch "${p##*:}" "$([ "$c" = 200 ] && echo 1)" 600 "has not answered for 10 minutes"
   done

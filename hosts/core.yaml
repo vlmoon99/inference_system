@@ -16,7 +16,10 @@ x-gpu: &gpu
 services:
   # ---- core models: listen on the tailnet IP so every node's balancer reaches them; each needs a key,
   # ---- so a tailnet device cannot go around the gateway's project keys
+  # profile "engines": this node's own GPU models. COMPOSE_PROFILES=engines in the host's .env runs them;
+  # without it the node keeps everything else and its GPU is free (deploy/engines.sh on|off, README "GLM").
   llm:
+    profiles: [engines]
     image: vllm-node:latest
     pull_policy: never              # no Dockerfile exists: `docker save | ssh <node> docker load` to add a node
     container_name: inf-llm
@@ -63,6 +66,7 @@ services:
     command: uvicorn app:app --host ${TAILNET_IP} --port 8013 --no-access-log
 
   comfyui:
+    profiles: [engines]
     build:
       context: ../../services/comfyui
       args: {BASE: "${COMFY_BASE:-pd-comfyui:base}"}     # a local image on each box (no Dockerfile for it)
@@ -76,6 +80,7 @@ services:
     command: bash -lc "cd /comfy && python main.py --listen 127.0.0.1 --port 8188 --disable-async-offload --disable-dynamic-vram --highvram"
 
   image:
+    profiles: [engines]
     build: ../../services/image
     image: inf/image:local
     container_name: inf-image
