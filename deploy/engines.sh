@@ -8,7 +8,7 @@
 # it and starts what is missing. Everything else (gateway, balancer, database, embeddings, search) runs either way.
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
-dir=$(for d in "$root"/hosts/*/; do [ -f "$d.env" ] && echo "$d"; done | head -1)   # the host dir that has a .env
+dir=$(for d in "$root"/hosts/*/; do [ ! -f "$d.env" ] || echo "$d"; done | head -1)   # the host dir that has a .env
 [ -n "$dir" ] || { echo "no hosts/<host>/.env on this machine"; exit 1; }
 cd "$dir"
 put() { if grep -qE "^$1=" .env; then sed -i -e "s#^$1=.*#$1=$2#" .env; else echo "$1=$2" >> .env; fi; }
