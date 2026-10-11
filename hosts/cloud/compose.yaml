@@ -1,0 +1,45 @@
+# The cloud gateway on a node: chat and embeddings on NEAR AI Cloud, pictures on Comfy Cloud, behind the same
+# API as the node's own gateway (:8000), on its own port. It is a SECOND door next to the node's models, not a
+# replacement: nothing in hosts/core.yaml or deploy/node.sh knows about it, and the node's own models, gateway
+# and watchdog are untouched whether it runs or not. A project chooses by the address it calls:
+#   http://<tailnet ip>:8000   this cluster's own models (LiteLLM, project keys)
+#   http://<tailnet ip>:8011   the clouds (one key: API_KEY in this folder's .env)
+#   cp .env.example .env   # fill it in
+#   docker compose up -d --build        # restarts by itself after a reboot (restart: unless-stopped)
+name: inf-cloud
+x-build: &build
+  build: {context: ../.., dockerfile: hosts/cloud/Dockerfile}
+  image: inf/cloud:local
+  network_mode: host
+  restart: unless-stopped
+services:
+  image:
+    <<: *build
+    container_name: inf-cloud-image
+    working_dir: /app/image
+    command: ["sh", "-c", "exec uvicorn app:app --host 127.0.0.1 --port ${CLOUD_IMAGE_PORT:-8012} --no-access-log"]
+    environment:
+      IMAGE_BACKEND: comfy_cloud
+      COMFY_API_KEY: ${COMFY_API_KEY}
+      IMAGE_QUALITY: ${IMAGE_QUALITY:-low}
+      API_KEY: ${API_KEY}
+  gateway:
+    <<: *build
+    container_name: inf-cloud-gateway
+    command: ["python", "gateway.py"]
+    depends_on: [image]
+    environment:
+      API_KEY: ${API_KEY}
+      BIND: ${TAILNET_IP}
+      PORT: ${CLOUD_PORT:-8011}
+      LLM_PROVIDER: nearai
+      IMAGE_PROVIDER: comfy_cloud
+      LLM_URL: ${NEARAI_URL:-https://cloud-api.near.ai}
+      LLM_KEY: ${NEARAI_API_KEY}
+      LLM_MODEL: ${NEARAI_MODEL:-Qwen/Qwen3.6-35B-A3B-FP8}
+      EMBED_MODEL: ${NEARAI_EMBED_MODEL:-Qwen/Qwen3-Embedding-0.6B}
+      LLM_VISION: "1"
+      LLM_HEALTH_PATH: /v1/models
+      LLM_ATTESTATION_URL: ${NEARAI_URL:-https://cloud-api.near.ai}/v1/attestation/report
+      IMAGE_URL: http://127.0.0.1:${CLOUD_IMAGE_PORT:-8012}
+      IMAGE_KEY: ${API_KEY}
