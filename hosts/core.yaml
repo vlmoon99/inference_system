@@ -82,7 +82,12 @@ services:
     network_mode: host
     restart: unless-stopped
     environment:
-      COMFY_URL: http://127.0.0.1:8188
+      # IMAGE_BACKEND=comfy_cloud in this host's .env (with COMFY_API_KEY) renders on Comfy Cloud instead of
+      # the ComfyUI next door; IMAGE_QUALITY=low|medium|high is how many pixels it paints there. Unset: as before.
+      IMAGE_BACKEND: ${IMAGE_BACKEND:-local}
+      IMAGE_QUALITY: ${IMAGE_QUALITY:-high}
+      COMFY_API_KEY: ${COMFY_API_KEY:-}
+      COMFY_URL: ${COMFY_URL:-}                 # empty: 127.0.0.1:8188 locally, cloud.comfy.org for the cloud
       API_KEY: ${IMAGE_API_KEY}
       BIND: ${TAILNET_IP}
       PORT: "8102"

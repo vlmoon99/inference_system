@@ -28,6 +28,18 @@ model_list:
       api_key: os.environ/IMAGE_API_KEY
       timeout: 600
 
+  # ---- cloud LLM (off). NEAR AI Cloud serves the same model inside a TEE. To send chat there, put
+  # NEARAI_API_KEY in the host's .env, pass it to the litellm service in hosts/core.yaml, and either replace
+  # the `qwen3.6-35b` entry above with this one or keep both (LiteLLM then spreads requests over the two).
+  # Not tried on the Sparks yet; hosts/mac runs on it (LLM_PROVIDER=nearai).
+  # - model_name: qwen3.6-35b
+  #   model_info: {mode: chat}
+  #   litellm_params:
+  #     model: openai/Qwen/Qwen3.6-35B-A3B-FP8
+  #     api_base: https://cloud-api.near.ai/v1
+  #     api_key: os.environ/NEARAI_API_KEY
+  #     timeout: 600
+
   # ---- non-core (example: a model only dgx-spark-2 serves, balancer block :18200 in the Caddyfile)
   # - model_name: some-video-model
   #   litellm_params:

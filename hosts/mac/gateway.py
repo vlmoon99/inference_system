@@ -11,10 +11,18 @@ same request shapes, so a project (BoostContent) only changes its base URL and k
     POST /v1/images/generations      → mflux (MLX) FLUX.2 klein 4B, 4-bit, 4 steps, in this process;
                                        same URL contract as services/image (image_url, output_put_url)
 
+Both engines can be a cloud instead (run.sh sets these from LLM_PROVIDER / IMAGE_PROVIDER in .env):
+  LLM_URL + LLM_KEY + LLM_MODEL + EMBED_MODEL   any OpenAI-compatible API; NEAR AI Cloud is the one in use
+  IMAGE_URL + IMAGE_KEY                          a services/image process (it renders on Comfy Cloud);
+                                                 picture requests are passed to it untouched, mflux is not loaded
+  LLM_ATTESTATION_URL                            GET /v1/attestation answers with the provider's proof that the
+                                                 model runs in a TEE (NEAR AI: Intel TDX + NVIDIA), cached 10 min
+
 The Sparks do not run this file: it lives only in hosts/mac and nothing else in the repo refers to it.
 Not here: project keys and usage logs (one key, API_KEY), streaming, /v1/images/edits, retries.
 Env: API_KEY, LLM_URL, LLM_KEY, LLM_MODEL, EMBED_MODEL, LLM_VISION, LLM_FREQUENCY_PENALTY, LLM_PRESENCE_PENALTY, IMAGE_MODEL_PATH, IMAGE_STEPS,
-     IMAGE_RENDER_SCALE, IMAGE_IDLE_UNLOAD_S, BIND, PORT.
+     IMAGE_RENDER_SCALE, IMAGE_IDLE_UNLOAD_S, IMAGE_URL, IMAGE_KEY, LLM_HEALTH_PATH, LLM_ATTESTATION_URL,
+     LLM_PROVIDER, IMAGE_PROVIDER (names only, for /health), BIND, PORT.
 """
 
 import asyncio
@@ -46,6 +54,14 @@ LLM_FREQUENCY_PENALTY = float(os.environ.get("LLM_FREQUENCY_PENALTY", "0"))
 LLM_PRESENCE_PENALTY = float(os.environ.get("LLM_PRESENCE_PENALTY", "0"))
 LLM_VISION = os.environ.get("LLM_VISION", "0") == "1"                      # 0: photos are dropped before the LLM
 LLM_IMAGE_SIDE = int(os.environ.get("LLM_IMAGE_SIDE", "896"))             # photos are shrunk before the LLM sees them
+LLM_HEALTH_PATH = os.environ.get("LLM_HEALTH_PATH") or "/health"
+LLM_ATTESTATION_URL = os.environ.get("LLM_ATTESTATION_URL", "")
+LLM_PROVIDER = os.environ.get("LLM_PROVIDER") or "local"
+IMAGE_PROVIDER = os.environ.get("IMAGE_PROVIDER") or "local"
+IMAGE_URL = os.environ.get("IMAGE_URL", "").rstrip("/")                    # set: pictures are rendered there
+IMAGE_KEY = os.environ.get("IMAGE_KEY", "")
+ATTESTATION_TTL_S = 600
+HEALTH_TTL_S = 60
 IMAGE_MODEL_PATH = os.environ.get("IMAGE_MODEL_PATH", "mflux-community/flux2-klein-4b-mflux-q4")
 IMAGE_STEPS = int(os.environ.get("IMAGE_STEPS", "4"))
 IMAGE_RENDER_SCALE = float(os.environ.get("IMAGE_RENDER_SCALE", "1.0"))   # <1: render smaller, resize up
@@ -63,6 +79,7 @@ _state = {"image_loaded": False, "last_render": 0.0, "renders": 0, "errors": 0, 
 _mlx = ThreadPoolExecutor(max_workers=1, thread_name_prefix="mlx")   # MLX streams are per thread: one thread, always
 _render_lock = asyncio.Lock()
 _model = None
+_cache: dict = {"attestation": None, "attestation_at": 0.0, "llm_ok": False, "llm_at": 0.0}
 
 
 @app.middleware("http")
@@ -277,10 +294,29 @@ def _render(ref: Image.Image | None, w: int, h: int, prompt: str, seed: int, ste
     return out.image.convert("RGB")
 
 
+async def forward_image(body: dict) -> JSONResponse:
+    """The picture is someone else's work (services/image on Comfy Cloud): pass the request on as it came."""
+    t0 = time.time()
+    try:
+        async with httpx.AsyncClient(timeout=900) as c:
+            r = await c.post(f"{IMAGE_URL}/v1/images/generations", json=body,
+                             headers={"authorization": f"Bearer {IMAGE_KEY}"} if IMAGE_KEY else {})
+    except httpx.HTTPError as e:
+        _state["errors"] += 1
+        raise HTTPException(502, f"image service: {type(e).__name__}")
+    if r.status_code == 200:
+        _state.update(renders=_state["renders"] + 1, last_render=time.time(), last_render_s=round(time.time() - t0, 1))
+    else:
+        _state["errors"] += 1
+    return JSONResponse(r.json(), status_code=r.status_code)
+
+
 @app.post("/v1/images/generations")
-async def generations(req: ImageRequest):
+async def generations(req: ImageRequest, request: Request):
     if req.model and req.model not in IMAGE_IDS:
         raise HTTPException(404, f"unknown model {req.model!r}")
+    if IMAGE_URL:
+        return await forward_image({**(await request.json()), "model": "qwen-image-edit"})
     if req.n != 1:
         raise HTTPException(400, "n must be 1 on this host")
     size = parse_size(req.size)
@@ -326,13 +362,39 @@ async def generations(req: ImageRequest):
 @app.get("/health")
 @app.get("/health/liveliness")
 async def health():
-    llm = False
-    try:
-        async with httpx.AsyncClient(timeout=3) as c:
-            llm = (await c.get(f"{LLM_URL}/health")).status_code == 200
-    except httpx.HTTPError:
-        pass
-    return {"ok": llm, "llm": llm, **_state}
+    if time.time() - _cache["llm_at"] > HEALTH_TTL_S or not _cache["llm_ok"]:
+        llm = False
+        try:
+            async with httpx.AsyncClient(timeout=10) as c:
+                llm = (await c.get(f"{LLM_URL}{LLM_HEALTH_PATH}", headers=_llm_headers())).status_code == 200
+        except httpx.HTTPError:
+            pass
+        _cache.update(llm_ok=llm, llm_at=time.time())
+    llm = _cache["llm_ok"]
+    return {"ok": llm, "llm": llm, "llm_provider": LLM_PROVIDER, "image_provider": IMAGE_PROVIDER, **_state}
+
+
+def attestation_summary(report: dict, model: str) -> dict:
+    """What a person needs to check the proof by hand: who signs the answers, and the two hardware quotes."""
+    found = next((m for m in report.get("model_attestations") or [] if m.get("model_name") == model),
+                 (report.get("model_attestations") or [{}])[0])
+    return {"tee": bool(found.get("intel_quote")), "provider": LLM_PROVIDER, "model": model,
+            "signing_address": found.get("signing_address"), "signing_algo": found.get("signing_algo"),
+            "intel_quote": found.get("intel_quote"), "has_nvidia_evidence": bool(found.get("nvidia_payload")),
+            "fetched_at": int(time.time())}
+
+
+@app.get("/v1/attestation")
+async def attestation(full: bool = False):
+    if not LLM_ATTESTATION_URL:
+        return {"tee": False, "provider": LLM_PROVIDER, "model": LLM_MODEL}
+    if _cache["attestation"] is None or time.time() - _cache["attestation_at"] > ATTESTATION_TTL_S:
+        async with httpx.AsyncClient(timeout=60) as c:
+            r = await c.get(LLM_ATTESTATION_URL, params={"model": LLM_MODEL}, headers=_llm_headers())
+        if r.status_code != 200:
+            raise HTTPException(502, f"attestation: HTTP {r.status_code} {r.text[:200]}")
+        _cache.update(attestation=r.json(), attestation_at=time.time())
+    return _cache["attestation"] if full else attestation_summary(_cache["attestation"], LLM_MODEL)
 
 
 @app.get("/v1/models")

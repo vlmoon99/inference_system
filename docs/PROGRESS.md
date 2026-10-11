@@ -280,3 +280,15 @@ Kept as the record of what was removed.
   in Flutter itself. Applied on the master by hand: `docker compose --profile master run --rm --no-deps
   migrate` (+ `configure`), then `notify pgrst, 'reload schema'`. Dump taken first:
   `~/before-0010-20261010.dump` on dgx-spark-2.
+* **2026-10-11 13:40 UTC: both Sparks are off; the Mac serves the public names again, with the models in two
+  clouds.** `hosts/mac` got two settings (`LLM_PROVIDER=nearai`, `IMAGE_PROVIDER=comfy_cloud`, README there):
+  chat and embeddings on NEAR AI Cloud (the same Qwen3.6-35B, in a TEE), pictures on Comfy Cloud with
+  Qwen-Image-Edit-2511 through `services/image` (`IMAGE_BACKEND=comfy_cloud`, new workflow
+  `qwen_image_edit_2511_cloud_api.json`, `IMAGE_QUALITY=low|medium|high`). The Mac runs no model.
+  `boostcontent.io` and `api.vramhouse.com` point at the tunnel `bc-mac`. Verified: `services/image` tests 10/10,
+  BoostContent `smoke.sh` 16/16 through boostcontent.io (3 pictures in 53 s). **The Mac's database is its copy
+  from 2026-10-10 21:25 UTC plus what is made from now on; the Sparks have what was made on them after that
+  copy. The two have to be reconciled by the owner when the Sparks return (backend `deploy/mac/RUNBOOK.md`).**
+  For the Sparks: `hosts/core.yaml` passes `IMAGE_BACKEND`, `IMAGE_QUALITY`, `COMFY_API_KEY`, `COMFY_URL` to
+  inf-image with defaults that keep today's behaviour, and `gateway/litellm.yaml` has a commented NEAR AI entry.
+  NOT verified: anything on the Sparks (they were off), the cost of a picture in Comfy credits.

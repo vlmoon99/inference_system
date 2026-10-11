@@ -20,7 +20,19 @@ reply stays strictly OpenAI-shaped.
 ComfyUI is reached only over HTTP (/upload/image, /prompt, /history, /view): no shared disk.
 When API_KEY is set every /v1 call needs `Authorization: Bearer $API_KEY` (the gateway sends it): an image
 service bound to a tailnet IP must not be a way around the gateway's project keys.
-Env: COMFY_URL, MODEL_NAME, WORKFLOW, KEEP_WARM_S, API_KEY, BIND, PORT.
+
+IMAGE_BACKEND=comfy_cloud renders on Comfy Cloud (cloud.comfy.org) instead of a ComfyUI next to this
+service: the same calls with an `X-API-Key` header, the job's state from /job/{id}/status, its files from
+/jobs/{id}, and /view answers with a redirect to a signed link that must be fetched WITHOUT the key. The
+cloud has the stock model files, so it gets its own workflow (base 2511 + the 4-step Lightning LoRA). No
+warm-up there: every render is paid for. Default is `local`, where nothing changes.
+
+Quality (the OpenAI `quality` field, or IMAGE_QUALITY when the caller sends none): `high` paints the frame
+that was asked for, `medium` paints it at 0.75 of each side and `low` at 0.5, then the result is resized up
+to the requested frame. Fewer pixels is less GPU time, which is what the cloud bills. This needs a workflow
+that paints at the size of the picture it is given (the cloud one); the local workflow snaps every input to
+about one megapixel, so there the setting changes nothing.
+Env: IMAGE_BACKEND, IMAGE_QUALITY, COMFY_URL, COMFY_API_KEY, MODEL_NAME, WORKFLOW, KEEP_WARM_S, API_KEY, BIND, PORT.
 """
 
 import asyncio
@@ -43,10 +55,24 @@ from fastapi.responses import JSONResponse
 from PIL import Image, ImageFilter, ImageOps
 from pydantic import BaseModel
 
-COMFY_URL = os.environ.get("COMFY_URL", "http://127.0.0.1:8188").rstrip("/")
+IMAGE_BACKEND = os.environ.get("IMAGE_BACKEND") or "local"   # local | comfy_cloud
+if IMAGE_BACKEND not in ("local", "comfy_cloud"):
+    raise SystemExit(f"IMAGE_BACKEND must be local or comfy_cloud, got {IMAGE_BACKEND!r}")
+CLOUD = IMAGE_BACKEND == "comfy_cloud"
+COMFY_API_KEY = os.environ.get("COMFY_API_KEY", "")
+if CLOUD and not COMFY_API_KEY:
+    raise SystemExit("IMAGE_BACKEND=comfy_cloud needs COMFY_API_KEY")
+COMFY_URL = (os.environ.get("COMFY_URL") or ("https://cloud.comfy.org/api" if CLOUD else "http://127.0.0.1:8188")).rstrip("/")
+COMFY_HEADERS = {"X-API-Key": COMFY_API_KEY} if CLOUD else {}
 MODEL_NAME = os.environ.get("MODEL_NAME", "qwen-image-edit")
-WORKFLOW = Path(os.environ.get("WORKFLOW", str(Path(__file__).parent / "workflows" / "qwen_image_edit_2511_api.json")))
-KEEP_WARM_S = int(os.environ.get("KEEP_WARM_S", "900"))   # 0 = off
+WORKFLOW = Path(os.environ.get("WORKFLOW") or str(Path(__file__).parent / "workflows" / (
+    "qwen_image_edit_2511_cloud_api.json" if CLOUD else "qwen_image_edit_2511_api.json")))
+KEEP_WARM_S = 0 if CLOUD else int(os.environ.get("KEEP_WARM_S", "900"))   # 0 = off; never on the cloud (paid)
+QUALITY_SCALE = {"low": 0.5, "medium": 0.75, "high": 1.0}
+IMAGE_QUALITY = os.environ.get("IMAGE_QUALITY") or "high"
+if IMAGE_QUALITY not in QUALITY_SCALE:
+    raise SystemExit(f"IMAGE_QUALITY must be low, medium or high, got {IMAGE_QUALITY!r}")
+CLOUD_DONE = {"success", "error", "non_retryable_error", "lost", "cancelled"}
 API_KEY = os.environ.get("API_KEY", "")
 MAX_SIDE = 2048
 MAX_N = 4
@@ -73,6 +99,7 @@ class ImageRequest(BaseModel):
     response_format: str | None = None   # "b64_json" (default) | "url" (needs output_put_url)
     seed: int | None = None
     steps: int | None = None
+    quality: str | None = None           # "low" | "medium" | "high"; absent or anything else → IMAGE_QUALITY
     image_url: str | None = None
     image_b64: str | None = None
     fit: str | None = None               # "contain" (default when size is given with a photo) | "cover"
@@ -92,6 +119,15 @@ def parse_size(size: str | None) -> tuple[int, int] | None:
     if not (64 <= w <= MAX_SIDE and 64 <= h <= MAX_SIDE):
         raise HTTPException(400, f"size sides must be 64..{MAX_SIDE}")
     return w - w % 16, h - h % 16
+
+
+def paint_size(w: int, h: int, quality: str | None) -> tuple[int, int]:
+    """The size the model paints for a w×h frame at this quality, on the 16 px grid."""
+    scale = QUALITY_SCALE.get(quality or "", QUALITY_SCALE[IMAGE_QUALITY])
+    if scale >= 1:
+        return w, h
+    pw, ph = max(256, int(w * scale)), max(256, int(h * scale))
+    return pw - pw % 16, ph - ph % 16
 
 
 def public_url(put_url: str) -> str:
@@ -148,14 +184,59 @@ def to_size(img: Image.Image, w: int, h: int) -> Image.Image:
 async def comfy_upload(c: httpx.AsyncClient, data: bytes) -> str:
     name = f"inf-{uuid.uuid4().hex[:12]}.png"
     r = await c.post(f"{COMFY_URL}/upload/image", files={"image": (name, data, "image/png")},
-                     data={"overwrite": "true"})
+                     data={"overwrite": "true", "type": "input"}, headers=COMFY_HEADERS)
     if r.status_code != 200:
         raise HTTPException(502, f"ComfyUI upload failed: {r.status_code} {r.text[:200]}")
     j = r.json()
     return f"{j['subfolder']}/{j['name']}" if j.get("subfolder") else j["name"]
 
 
+def cloud_failure(status: int, text: str) -> HTTPException:
+    """Comfy Cloud's answers that the owner has to act on, said plainly."""
+    why = {401: "the Comfy Cloud key is wrong", 402: "Comfy Cloud is out of credits",
+           429: "the Comfy Cloud subscription is not active"}.get(status)
+    return HTTPException(502, f"Comfy Cloud: {why or f'HTTP {status}'} {text[:200]}".strip())
+
+
+def first_image(outputs: dict) -> dict | None:
+    for out in (outputs or {}).values():
+        for im in out.get("images") or []:
+            return im
+    return None
+
+
+async def cloud_run(c: httpx.AsyncClient, wf: dict) -> bytes:
+    r = await c.post(f"{COMFY_URL}/prompt", json={"prompt": wf}, headers=COMFY_HEADERS)
+    if r.status_code != 200 or "prompt_id" not in r.json():
+        raise cloud_failure(r.status_code, r.text)
+    pid = r.json()["prompt_id"]
+    for _ in range(300):                       # ≤ 10 min
+        await asyncio.sleep(2)
+        try:
+            status = (await c.get(f"{COMFY_URL}/job/{pid}/status", headers=COMFY_HEADERS)).json().get("status")
+        except (httpx.HTTPError, ValueError):
+            continue
+        if status not in CLOUD_DONE:
+            continue
+        if status != "success":
+            raise HTTPException(502, f"Comfy Cloud job {pid} ended as {status}")
+        job = await c.get(f"{COMFY_URL}/jobs/{pid}", headers=COMFY_HEADERS)
+        im = first_image(job.json().get("outputs")) if job.status_code == 200 else None
+        if not im:
+            raise HTTPException(502, f"Comfy Cloud job {pid} has no picture")
+        v = await c.get(f"{COMFY_URL}/view", headers=COMFY_HEADERS, follow_redirects=False, params={
+            "filename": im["filename"], "subfolder": im.get("subfolder", ""), "type": im.get("type", "output")})
+        if v.status_code not in (301, 302, 303, 307, 308) or "location" not in v.headers:
+            raise cloud_failure(v.status_code, v.text)
+        f = await c.get(v.headers["location"])          # the signed link: no key goes to the storage host
+        f.raise_for_status()
+        return f.content
+    raise HTTPException(504, "Comfy Cloud generation timed out")
+
+
 async def comfy_run(c: httpx.AsyncClient, wf: dict) -> bytes:
+    if CLOUD:
+        return await cloud_run(c, wf)
     r = await c.post(f"{COMFY_URL}/prompt", json={"prompt": wf})
     if r.status_code != 200:
         raise HTTPException(502, f"ComfyUI rejected workflow: {r.text[:300]}")
@@ -214,13 +295,17 @@ async def render(req: ImageRequest, photo: Image.Image | None) -> list[tuple[byt
     template = json.loads(WORKFLOW.read_text())
     if photo is None:
         w, h = size or (1024, 1024)
-        ref, prompt, exact = Image.new("RGB", (w, h), (255, 255, 255)), \
+        ref, prompt, exact = Image.new("RGB", paint_size(w, h, req.quality), (255, 255, 255)), \
             f"Replace the blank white canvas with: {req.prompt}", (w, h)
     elif size:
-        ref = to_size(photo, *size) if req.fit == "cover" else fit_contain(photo, *size)
+        paint = paint_size(*size, req.quality)
+        ref = to_size(photo, *paint) if req.fit == "cover" else fit_contain(photo, *paint)
         prompt, exact = req.prompt, size
     else:
         ref, prompt, exact = ImageOps.exif_transpose(photo).convert("RGB"), req.prompt, None
+        paint = paint_size(*ref.size, req.quality)
+        if paint != ref.size:
+            ref, exact = to_size(ref, *paint), ref.size
     out: list[tuple[bytes, int]] = []
     async with httpx.AsyncClient(timeout=60) as c:
         ref_name = await comfy_upload(c, png(ref))
@@ -257,7 +342,8 @@ async def respond(req: ImageRequest, photo: Image.Image | None) -> dict:
     _state["renders"] += len(results)
     _state["loaded"] = True
     print(json.dumps({"event": "render", "n": len(results), "edit": photo is not None,
-                      "size": req.size, "elapsed_s": round(time.time() - t0, 1)}), flush=True)
+                      "size": req.size, "backend": IMAGE_BACKEND,
+                      "quality": req.quality if req.quality in QUALITY_SCALE else IMAGE_QUALITY, "elapsed_s": round(time.time() - t0, 1)}), flush=True)
     return {"created": int(t0), "data": data}
 
 
@@ -290,10 +376,11 @@ async def health():
     comfy = False
     try:
         async with httpx.AsyncClient(timeout=3) as c:
-            comfy = (await c.get(f"{COMFY_URL}/system_stats")).status_code == 200
+            comfy = (await c.get(f"{COMFY_URL}/system_stats", headers=COMFY_HEADERS)).status_code == 200
     except httpx.HTTPError:
         pass
-    return {"ok": comfy, "loaded": _state["loaded"] and comfy, "model": MODEL_NAME, "comfy": comfy,
+    return {"ok": comfy, "loaded": (CLOUD or _state["loaded"]) and comfy, "model": MODEL_NAME, "comfy": comfy,
+            "backend": IMAGE_BACKEND,
             "renders": _state["renders"], "errors": _state["errors"]}
 
 

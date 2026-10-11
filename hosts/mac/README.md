@@ -22,6 +22,36 @@ cp .env.example .env            # set API_KEY (BoostContent: its INFERENCE_KEY)
 pictures with mflux in its own process (one render at a time). The picture contract is the one of
 `services/image` (`image_url`, `image_b64`, `output_put_url`, `size`, `fit`).
 
+## The models in a cloud instead (2026-10-11)
+
+Two settings in `.env`, each on its own; `./run.sh stop && ./run.sh start` applies them, `./run.sh status` shows them:
+
+| Setting | Values | What it does |
+|---|---|---|
+| `LLM_PROVIDER` | `local` (default), `nearai` | `nearai`: chat and embeddings go to NEAR AI Cloud (`NEARAI_API_KEY`), the same Qwen3.6-35B and Qwen3-Embedding-0.6B (1024-dim) as on the Sparks, inside a TEE. MTPLX is not started. It reads photos. |
+| `IMAGE_PROVIDER` | `local` (default), `comfy_cloud` | `comfy_cloud`: `services/image` runs here on `127.0.0.1:8002` and renders on Comfy Cloud (`COMFY_API_KEY`) with Qwen-Image-Edit-2511, the Sparks' model. mflux is not loaded. |
+| `IMAGE_QUALITY` | `low`, `medium`, `high` (default) | Cloud pictures only. The model paints 0.5, 0.75 or 1.0 of each side and the result is resized to the frame that was asked for. A request's own `quality` field wins. |
+
+With both on a cloud the Mac needs no model files and almost no memory. The public ids, the key and the request
+shapes are the same, so BoostContent notices nothing (`boostcontent_backend/deploy/mac/inference.sh cloud` only
+sets how many jobs it runs at once).
+
+`GET /v1/attestation` (with the key) answers `{tee, provider, model, signing_address, intel_quote, …}`: NEAR AI's
+proof that the model runs in a TEE (Intel TDX quote, NVIDIA GPU evidence), cached for 10 minutes; `?full=true`
+gives the whole report. With a local LLM it answers `{"tee": false}`.
+
+Measured through this gateway (2026-10-11, pictures 1024×1280 from a photo, 4 steps):
+
+| What | Result |
+|---|---|
+| NEAR AI: a photo + 92 tokens of JSON with a Ukrainian caption | 11 s |
+| Comfy Cloud `low` (paints 512×640) | 12–30 s by the clock, about 4 s of GPU |
+| Comfy Cloud `medium` (768×960) | 12 s by the clock, 4.4 s of GPU |
+| Comfy Cloud `high` (1024×1280) | 45 s by the clock, 15.6 s of GPU |
+| BoostContent `smoke.sh` through boostcontent.io, `low` | 16/16, a post with 3 pictures ready in 53 s |
+
+One sample each, and the clock time includes Comfy Cloud's queue. What a picture costs in credits was not measured.
+
 ## What is different from the Sparks
 
 * **The LLM cannot see photos** (`supports_vision: false` for this pack). Image parts of a chat request are
